@@ -1,13 +1,16 @@
 import unittest
+from zoneinfo import ZoneInfo
 
 from data_factory.contract import ReasonCode
 from data_factory.quality import QualityReport, classify_records
 from helpers import make_row
 
+NY = ZoneInfo("America/New_York")
+
 
 def classify(rows):
     report = QualityReport()
-    return list(classify_records(rows, report)), report
+    return list(classify_records(rows, report, NY)), report
 
 
 class ClassifyRecordsTests(unittest.TestCase):
@@ -54,7 +57,9 @@ class ClassifyRecordsTests(unittest.TestCase):
 
     def test_report_is_updated_only_as_stream_is_consumed(self):
         report = QualityReport()
-        stream = classify_records([make_row(), make_row(unique_key="2")], report)
+        stream = classify_records(
+            [make_row(), make_row(unique_key="2")], report, NY
+        )
         self.assertEqual(report.total, 0)
         next(stream)
         self.assertEqual(report.total, 1)

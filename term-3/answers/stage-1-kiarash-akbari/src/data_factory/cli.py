@@ -46,7 +46,7 @@ def _validate(cfg: Config) -> None:
         )
     report = QualityReport()
     with QuarantineWriter(cfg.paths.quarantine_dir) as writer:
-        for record in classify_records(store.iter_rows(), report):
+        for record in classify_records(store.iter_rows(), report, cfg.source.timezone):
             if not record.is_valid:
                 writer.write(record)
     reasons = ",".join(
