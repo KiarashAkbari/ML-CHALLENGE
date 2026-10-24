@@ -33,7 +33,7 @@ class HttpConfig:
 @dataclass(frozen=True)
 class PathsConfig:
     raw_dir: Path
-    processed_dir: Path
+    curated_dir: Path
     quarantine_dir: Path
     manifest_path: Path
 
@@ -116,7 +116,7 @@ def parse_config(data: dict) -> Config:
         http=HttpConfig(float(timeout), retries, float(backoff)),
         paths=PathsConfig(
             raw_dir=Path(_get(p, "raw_dir", "paths")),
-            processed_dir=Path(_get(p, "processed_dir", "paths")),
+            curated_dir=Path(_get(p, "curated_dir", "paths")),
             quarantine_dir=Path(_get(p, "quarantine_dir", "paths")),
             manifest_path=Path(_get(p, "manifest_path", "paths")),
         ),
