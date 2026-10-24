@@ -4,10 +4,12 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
+from zoneinfo import ZoneInfo
 
 from .contract import UNIQUE_KEY, ReasonCode
-from .validate import validate_record
 from .errors import QuarantineThresholdError
+from .validate import validate_record
+
 
 @dataclass(frozen=True)
 class ClassifiedRecord:
@@ -40,12 +42,12 @@ class QualityReport:
 
 
 def classify_records(
-    rows: Iterable[Mapping[str, object]], report: QualityReport
+    rows: Iterable[Mapping[str, object]], report: QualityReport, zone: ZoneInfo
 ) -> Iterator[ClassifiedRecord]:
     """Lazily classify rows; the report is updated as the stream is consumed."""
     seen_keys: set[str] = set()
     for row in rows:
-        reasons = list(validate_record(row))
+        reasons = list(validate_record(row, zone))
         raw_key = row.get(UNIQUE_KEY)
         key = "" if raw_key is None else str(raw_key).strip()
         if key and key in seen_keys:
@@ -55,6 +57,7 @@ def classify_records(
         result = ClassifiedRecord(row, tuple(reasons))
         report.add(result.reasons)
         yield result
+
 
 def enforce_threshold(report: QualityReport, *, max_ratio: float, min_rows: int) -> None:
     """Fail the run when too large a share of the data was quarantined."""

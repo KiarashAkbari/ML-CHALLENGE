@@ -1,7 +1,10 @@
 import unittest
+from zoneinfo import ZoneInfo
 
 from data_factory.contract import ReasonCode
-from data_factory.validate import validate_record
+from data_factory.validate import validate_record as validate_record_in_zone
+
+NY = ZoneInfo("America/New_York")
 
 BASE = {
     "unique_key": "1",
@@ -21,6 +24,10 @@ def make_row(**overrides):
     return {**BASE, **overrides}
 
 
+def validate_record(row):
+    return validate_record_in_zone(row, NY)
+
+
 class ValidateRecordTests(unittest.TestCase):
     def test_valid_row_passes(self):
         self.assertEqual(validate_record(BASE), ())
@@ -31,7 +38,7 @@ class ValidateRecordTests(unittest.TestCase):
         self.assertEqual(validate_record(row), (ReasonCode.MISSING_REQUIRED_FIELD,))
 
     def test_blank_required_field_counts_as_missing(self):
-        row = make_row(descriptor="   ")
+        row = make_row(descriptor=" ")
         self.assertEqual(validate_record(row), (ReasonCode.MISSING_REQUIRED_FIELD,))
 
     def test_missing_unique_key(self):
@@ -68,6 +75,20 @@ class ValidateRecordTests(unittest.TestCase):
     def test_closed_equal_to_created_is_valid(self):
         row = make_row(closed_date=BASE["created_date"])
         self.assertEqual(validate_record(row), ())
+
+    def test_fall_back_inversion_is_valid(self):
+        row = make_row(
+            created_date="2025-11-02T01:04:03.000",
+            closed_date="2025-11-02T01:03:22.000",
+        )
+        self.assertEqual(validate_record(row), ())
+
+    def test_closed_before_created_across_fall_back_is_still_invalid(self):
+        row = make_row(
+            created_date="2025-11-02T01:30:00.000",
+            closed_date="2025-11-02T00:30:00.000",
+        )
+        self.assertEqual(validate_record(row), (ReasonCode.CLOSED_BEFORE_CREATED,))
 
     def test_closed_status_without_closed_date(self):
         row = make_row(closed_date=None)
