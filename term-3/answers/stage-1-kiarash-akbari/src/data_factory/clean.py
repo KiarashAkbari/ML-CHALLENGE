@@ -52,6 +52,7 @@ class JoinStats:
     unmatched_zip: int = 0
     null_population: int = 0
     ambiguous: int = 0
+    max_created_at: str | None = None
     unmatched_by_zip: Counter[str] = field(default_factory=Counter)
 
 
@@ -75,8 +76,12 @@ def clean_record(
     an open case keeps empty closed_at and duration.
     """
     created = datetime.strptime(str(row[CREATED_COLUMN]), DATETIME_FORMAT)
-    closed_text = _text(row.get(CLOSED_COLUMN))
-    closed = datetime.strptime(closed_text, DATETIME_FORMAT) if closed_text else None
+    created_text = created.strftime(OUTPUT_DATETIME_FORMAT)
+    if stats.max_created_at is None or created_text > stats.max_created_at:
+        stats.max_created_at = created_text
+
+    closed_source = _text(row.get(CLOSED_COLUMN))
+    closed = datetime.strptime(closed_source, DATETIME_FORMAT) if closed_source else None
 
     duration: int | None = None
     if closed is not None:
@@ -104,7 +109,7 @@ def clean_record(
 
     cleaned: dict[str, object] = {
         UNIQUE_KEY: str(row[UNIQUE_KEY]).strip(),
-        "created_at": created.strftime(OUTPUT_DATETIME_FORMAT),
+        "created_at": created_text,
         "closed_at": closed.strftime(OUTPUT_DATETIME_FORMAT) if closed else None,
         "duration_seconds": duration,
         "is_ambiguous": ambiguous,

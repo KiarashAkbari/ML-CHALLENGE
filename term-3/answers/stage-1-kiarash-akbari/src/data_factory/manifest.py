@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
 
-from .config import Config
+from .config import MAX_SOCRATA_PAGE, Config
+from .fetch_log import minimum_requests
 from .outputs import sha256_file
 from .pipeline import ProcessResult
 
@@ -34,6 +35,7 @@ def build_manifest(
     requests: int,
     started_at: str,
     finished_at: str,
+    case_requests_total: int | None = None,
 ) -> dict:
     report, stats = result.report, result.stats
     reference_url = cfg.reference.url if cfg.reference else None
@@ -46,6 +48,7 @@ def build_manifest(
             "end_date": cfg.source.end_date.isoformat(),
             "timezone": cfg.source.timezone.key,
         },
+        "watermark": {"max_created_at": stats.max_created_at},
         "restriction": {
             "agency": cfg.source.agency,
             "complaint_types": list(cfg.source.complaint_types),
@@ -72,6 +75,13 @@ def build_manifest(
             "ambiguous_timestamps": stats.ambiguous,
         },
         "requests_this_run": requests,
+        "request_budget": {
+            "page_size": cfg.source.page_size,
+            "max_page_size_allowed": MAX_SOCRATA_PAGE,
+            "raw_records": report.total,
+            "minimum_case_requests": minimum_requests(report.total, cfg.source.page_size),
+            "case_requests_total": case_requests_total,
+        },
         "outputs": {
             name: {"path": path.as_posix(), "sha256": sha256_file(path)}
             for name, path in sorted(result.output_paths.items())
