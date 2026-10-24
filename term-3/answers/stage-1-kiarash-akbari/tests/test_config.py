@@ -20,6 +20,8 @@ app_token_env = "TOKEN"
 timeout_seconds = 10
 max_retries = 3
 backoff_base_seconds = 1.5
+backoff_factor = 2.0
+retry_statuses = [429, 500, 503]
 
 [paths]
 raw_dir = "raw"
@@ -43,6 +45,8 @@ class ConfigTests(unittest.TestCase):
         cfg = self._load(VALID)
         self.assertEqual(cfg.source.page_size, 1000)
         self.assertEqual(cfg.http.max_retries, 3)
+        self.assertEqual(cfg.http.backoff_factor, 2.0)
+        self.assertEqual(cfg.http.retry_statuses, frozenset({429, 500, 503}))
         self.assertEqual(cfg.source.complaint_types, ("Noise - Residential",))
 
     def test_paths_use_curated_dir(self):
@@ -52,7 +56,17 @@ class ConfigTests(unittest.TestCase):
 
     def test_old_processed_dir_key_rejected(self):
         bad = VALID.replace("curated_dir", "processed_dir")
-        with self.assertRaises(ConfigError):
+        with self.assertRaisesRegex(ConfigError, "paths.curated_dir"):
+            self._load(bad)
+
+    def test_invalid_backoff_factor(self):
+        bad = VALID.replace("backoff_factor = 2.0", "backoff_factor = 0.5")
+        with self.assertRaisesRegex(ConfigError, "backoff_factor"):
+            self._load(bad)
+
+    def test_invalid_retry_statuses(self):
+        bad = VALID.replace("retry_statuses = [429, 500, 503]", "retry_statuses = [429, 42]")
+        with self.assertRaisesRegex(ConfigError, "retry_statuses"):
             self._load(bad)
 
     def test_missing_file(self):
