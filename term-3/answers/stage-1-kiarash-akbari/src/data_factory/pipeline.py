@@ -1,0 +1,87 @@
+"""Source-agnostic processing: classify, clean, join and write the final outputs."""
+from __future__ import annotations
+
+from collections.abc import Iterable, Iterator, Mapping
+from dataclasses import dataclass
+from pathlib import Path
+
+from .clean import JoinStats, clean_stream
+from .config import Config
+from .errors import QuarantineThresholdError
+from .outputs import (
+    DATASET_FILENAME,
+    WIDE_FILENAME,
+    AreaMonthAggregator,
+    DatasetWriter,
+    months_between,
+    write_wide,
+)
+from .population import ZipArea
+from .quality import ClassifiedRecord, QualityReport, classify_records, enforce_threshold
+from .quarantine import QuarantineWriter
+
+OUTPUT_DATASET = "dataset"
+OUTPUT_WIDE = "wide_table"
+OUTPUT_QUARANTINE = "quarantine"
+
+
+@dataclass(frozen=True)
+class ProcessResult:
+    report: QualityReport
+    stats: JoinStats
+    output_paths: dict[str, Path]
+
+
+def _tee_quarantine(
+    records: Iterable[ClassifiedRecord], writer: QuarantineWriter
+) -> Iterator[ClassifiedRecord]:
+    for record in records:
+        if not record.is_valid:
+            writer.write(record)
+        yield record
+
+
+def process(
+    rows: Iterable[Mapping[str, object]],
+    cfg: Config,
+    zip_index: Mapping[str, ZipArea],
+) -> ProcessResult:
+    """One streaming pass; on threshold failure the quarantine is kept, the dataset is not."""
+    zone = cfg.source.timezone
+    report, stats = QualityReport(), JoinStats()
+    aggregator = AreaMonthAggregator(
+        months_between(cfg.source.start_date, cfg.source.end_date)
+    )
+    dataset_path = cfg.paths.curated_dir / DATASET_FILENAME
+    wide_path = cfg.paths.curated_dir / WIDE_FILENAME
+
+    threshold_error: QuarantineThresholdError | None = None
+    with QuarantineWriter(cfg.paths.quarantine_dir) as quarantine:
+        try:
+            with DatasetWriter(dataset_path) as dataset:
+                classified = _tee_quarantine(
+                    classify_records(rows, report, zone), quarantine
+                )
+                for cleaned in clean_stream(classified, zone, zip_index, stats):
+                    dataset.write(cleaned)
+                    aggregator.add(cleaned)
+                enforce_threshold(
+                    report,
+                    max_ratio=cfg.quality.max_quarantine_ratio,
+                    min_rows=cfg.quality.min_rows_for_threshold,
+                )
+        except QuarantineThresholdError as exc:
+            threshold_error = exc
+    if threshold_error is not None:
+        raise threshold_error
+
+    write_wide(wide_path, aggregator)
+    return ProcessResult(
+        report,
+        stats,
+        {
+            OUTPUT_DATASET: dataset_path,
+            OUTPUT_WIDE: wide_path,
+            OUTPUT_QUARANTINE: quarantine.path,
+        },
+    )
