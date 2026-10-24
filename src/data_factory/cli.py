@@ -1,12 +1,13 @@
 import argparse
 import sys
 
-from .clean import JoinStats, clean_stream
 from .config import Config, ReferenceConfig, load_config
 from .errors import ConfigError, DataError, PipelineError
 from .exit_codes import ExitCode
 from .fetch import SocrataSource, fetch_all, query_fingerprint
 from .http import HttpClient
+from .manifest import build_manifest, utc_now_iso, write_manifest
+from .pipeline import process
 from .population import build_zip_index, fetch_reference, read_reference, write_reference
 from .quality import QualityReport, classify_records, enforce_threshold
 from .quarantine import QuarantineWriter
@@ -34,8 +35,15 @@ def _reference_config(cfg: Config) -> ReferenceConfig:
     return cfg.reference
 
 
-def _fetch(cfg: Config) -> None:
-    client = HttpClient(cfg.http)
+def _require_raw(store: RawPageStore) -> None:
+    if store.completed_pages() == 0:
+        raise DataError(
+            "No raw pages found; run 'fetch' first",
+            context={"dir": str(store.directory)},
+        )
+
+
+def _fetch(cfg: Config, client: HttpClient) -> None:
     source = SocrataSource.from_env(client, cfg.source)
     store = _raw_store(cfg)
     result = fetch_all(source, store)
@@ -46,20 +54,11 @@ def _fetch(cfg: Config) -> None:
     )
 
 
-def _fetch_reference(cfg: Config) -> None:
+def _fetch_reference(cfg: Config, client: HttpClient) -> None:
     ref = _reference_config(cfg)
-    client = HttpClient(cfg.http)
     rows = fetch_reference(client, ref)
     write_reference(rows, ref.path)
     print(f"reference_rows={len(rows)} requests={client.request_count} path={ref.path}")
-
-
-def _require_raw(store: RawPageStore) -> None:
-    if store.completed_pages() == 0:
-        raise DataError(
-            "No raw pages found; run 'fetch' first",
-            context={"dir": str(store.directory)},
-        )
 
 
 def _format_reasons(report: QualityReport) -> str:
@@ -89,58 +88,56 @@ def _validate(cfg: Config) -> None:
     )
 
 
-def _clean(cfg: Config) -> None:
+def _build(cfg: Config, requests: int, started_at: str) -> None:
     ref = _reference_config(cfg)
     zip_index = build_zip_index(read_reference(ref.path))
     store = _raw_store(cfg)
     _require_raw(store)
-    report = QualityReport()
-    stats = JoinStats()
-    classified = classify_records(store.iter_rows(), report, cfg.source.timezone)
-    with QuarantineWriter(cfg.paths.quarantine_dir) as writer:
-        for _ in clean_stream(_tee_quarantine(classified, writer), cfg.source.timezone,
-                              zip_index, stats):
-            pass
-    top = stats.unmatched_by_zip.most_common(TOP_UNMATCHED_ZIPS)
+    result = process(store.iter_rows(), cfg, zip_index)
+    manifest = build_manifest(
+        cfg=cfg,
+        result=result,
+        requests=requests,
+        started_at=started_at,
+        finished_at=utc_now_iso(),
+    )
+    write_manifest(cfg.paths.manifest_path, manifest)
+    report, stats = result.report, result.stats
     print(
         f"total={report.total} passed={report.passed} quarantined={report.quarantined} "
-        f"rows_in={stats.rows_in} rows_out={stats.rows_out} matched={stats.matched} "
-        f"missing_zip={stats.missing_zip} unmatched_zip={stats.unmatched_zip} "
-        f"unmatched_distinct_zips={len(stats.unmatched_by_zip)} top_unmatched={top} "
-        f"null_population={stats.null_population} ambiguous={stats.ambiguous}"
-    )
-    enforce_threshold(
-        report,
-        max_ratio=cfg.quality.max_quarantine_ratio,
-        min_rows=cfg.quality.min_rows_for_threshold,
+        f"matched={stats.matched} missing_zip={stats.missing_zip} "
+        f"unmatched_zip={stats.unmatched_zip} "
+        f"top_unmatched={stats.unmatched_by_zip.most_common(TOP_UNMATCHED_ZIPS)} "
+        f"ambiguous={stats.ambiguous} requests={requests} "
+        f"manifest={cfg.paths.manifest_path}"
     )
 
 
-def _tee_quarantine(records, writer):
-    for record in records:
-        if not record.is_valid:
-            writer.write(record)
-        yield record
+def _run(cfg: Config) -> None:
+    started_at = utc_now_iso()
+    client = HttpClient(cfg.http)
+    _fetch(cfg, client)
+    ref = _reference_config(cfg)
+    if not ref.path.is_file():
+        _fetch_reference(cfg, client)
+    _build(cfg, client.request_count, started_at)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         cfg = load_config(args.config)
-        if args.command == "fetch":
-            _fetch(cfg)
-            return int(ExitCode.OK)
-        if args.command == "fetch-reference":
-            _fetch_reference(cfg)
-            return int(ExitCode.OK)
-        if args.command == "validate":
+        if args.command == "run":
+            _run(cfg)
+        elif args.command == "fetch":
+            _fetch(cfg, HttpClient(cfg.http))
+        elif args.command == "fetch-reference":
+            _fetch_reference(cfg, HttpClient(cfg.http))
+        elif args.command == "validate":
             _validate(cfg)
-            return int(ExitCode.OK)
-        if args.command == "clean":
-            _clean(cfg)
-            return int(ExitCode.OK)
-        print("error: 'run' is not implemented yet", file=sys.stderr)
-        return int(ExitCode.UNEXPECTED)
+        else:
+            _build(cfg, 0, utc_now_iso())
+        return int(ExitCode.OK)
     except PipelineError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return int(exc.exit_code)
