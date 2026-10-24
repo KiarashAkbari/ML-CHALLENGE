@@ -5,6 +5,7 @@ import tomllib
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .errors import ConfigError
 
@@ -23,6 +24,7 @@ class SourceConfig:
     end_date: date
     page_size: int
     app_token_env: str
+    timezone: ZoneInfo
 
 
 @dataclass(frozen=True)
@@ -73,6 +75,15 @@ def _str_tuple(value, label: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not value or not all(isinstance(v, str) for v in value):
         raise ConfigError(f"{label} must be a non-empty list of strings")
     return tuple(value)
+
+
+def _zone(value) -> ZoneInfo:
+    if not isinstance(value, str):
+        raise ConfigError("source.timezone must be an IANA time zone name")
+    try:
+        return ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ConfigError(f"source.timezone is not a known time zone: {value}") from exc
 
 
 def _is_http_status(value) -> bool:
@@ -137,6 +148,7 @@ def parse_config(data: dict) -> Config:
             end_date=end,
             page_size=page_size,
             app_token_env=str(_get(s, "app_token_env", "source")),
+            timezone=_zone(_get(s, "timezone", "source")),
         ),
         http=HttpConfig(
             timeout_seconds=float(timeout),

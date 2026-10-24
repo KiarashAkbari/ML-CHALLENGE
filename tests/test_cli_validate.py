@@ -22,6 +22,7 @@ start_date = 2025-01-01
 end_date = 2025-06-30
 page_size = 1000
 app_token_env = "TOKEN"
+timezone = "America/New_York"
 
 [http]
 timeout_seconds = 10

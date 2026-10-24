@@ -15,6 +15,7 @@ start_date = 2025-01-01
 end_date = 2025-06-30
 page_size = 1000
 app_token_env = "TOKEN"
+timezone = "America/New_York"
 
 [http]
 timeout_seconds = 10
@@ -110,6 +111,26 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ConfigError, "min_rows_for_threshold"):
             self._load(text)
 
+    def test_missing_min_rows(self):
+        text = VALID.replace("min_rows_for_threshold = 1000\n", "")
+        with self.assertRaisesRegex(ConfigError, "min_rows_for_threshold"):
+            self._load(text)
+
+    def test_timezone_is_loaded(self):
+        cfg = self._load(VALID)
+        self.assertEqual(cfg.source.timezone.key, "America/New_York")
+
+    def test_unknown_timezone_rejected(self):
+        bad = VALID.replace("America/New_York", "Mars/Olympus")
+        with self.assertRaisesRegex(ConfigError, "source.timezone"):
+            self._load(bad)
+
+    def test_missing_timezone_rejected(self):
+        bad = VALID.replace('timezone = "America/New_York"\n', "")
+        with self.assertRaisesRegex(ConfigError, "source.timezone"):
+            self._load(bad)
+
 
 if __name__ == "__main__":
     unittest.main()
+
