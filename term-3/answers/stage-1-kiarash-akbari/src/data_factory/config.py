@@ -9,6 +9,8 @@ from pathlib import Path
 from .errors import ConfigError
 
 MAX_SOCRATA_PAGE = 50_000
+MIN_HTTP_STATUS = 100
+MAX_HTTP_STATUS = 599
 
 
 @dataclass(frozen=True)
@@ -28,6 +30,8 @@ class HttpConfig:
     timeout_seconds: float
     max_retries: int
     backoff_base_seconds: float
+    backoff_factor: float
+    retry_statuses: frozenset[int]
 
 
 @dataclass(frozen=True)
@@ -70,6 +74,14 @@ def _str_tuple(value, label: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _is_http_status(value) -> bool:
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and MIN_HTTP_STATUS <= value <= MAX_HTTP_STATUS
+    )
+
+
 def parse_config(data: dict) -> Config:
     s = _section(data, "source")
     h = _section(data, "http")
@@ -98,6 +110,14 @@ def parse_config(data: dict) -> Config:
     if not isinstance(backoff, (int, float)) or backoff < 0:
         raise ConfigError("http.backoff_base_seconds must be >= 0")
 
+    factor = _get(h, "backoff_factor", "http")
+    if not isinstance(factor, (int, float)) or factor < 1:
+        raise ConfigError("http.backoff_factor must be >= 1")
+
+    statuses = _get(h, "retry_statuses", "http")
+    if not isinstance(statuses, list) or not all(_is_http_status(c) for c in statuses):
+        raise ConfigError("http.retry_statuses must be a list of HTTP status codes")
+
     ratio = _get(q, "max_quarantine_ratio", "quality")
     if not isinstance(ratio, (int, float)) or not 0 < ratio < 1:
         raise ConfigError("quality.max_quarantine_ratio must be in (0, 1)")
@@ -113,7 +133,13 @@ def parse_config(data: dict) -> Config:
             page_size=page_size,
             app_token_env=str(_get(s, "app_token_env", "source")),
         ),
-        http=HttpConfig(float(timeout), retries, float(backoff)),
+        http=HttpConfig(
+            timeout_seconds=float(timeout),
+            max_retries=retries,
+            backoff_base_seconds=float(backoff),
+            backoff_factor=float(factor),
+            retry_statuses=frozenset(statuses),
+        ),
         paths=PathsConfig(
             raw_dir=Path(_get(p, "raw_dir", "paths")),
             curated_dir=Path(_get(p, "curated_dir", "paths")),
