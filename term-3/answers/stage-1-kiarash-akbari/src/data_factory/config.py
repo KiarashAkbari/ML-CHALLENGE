@@ -51,11 +51,20 @@ class QualityConfig:
 
 
 @dataclass(frozen=True)
+class ReferenceConfig:
+    url: str
+    columns: tuple[str, ...]
+    limit: int
+    path: Path
+
+
+@dataclass(frozen=True)
 class Config:
     source: SourceConfig
     http: HttpConfig
     paths: PathsConfig
     quality: QualityConfig
+    reference: ReferenceConfig | None = None
 
 
 def _section(data: dict, name: str) -> dict:
@@ -91,6 +100,18 @@ def _is_http_status(value) -> bool:
         isinstance(value, int)
         and not isinstance(value, bool)
         and MIN_HTTP_STATUS <= value <= MAX_HTTP_STATUS
+    )
+
+
+def _parse_reference(section: dict) -> ReferenceConfig:
+    limit = _get(section, "limit", "reference")
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
+        raise ConfigError("reference.limit must be an integer >= 1")
+    return ReferenceConfig(
+        url=str(_get(section, "url", "reference")),
+        columns=_str_tuple(_get(section, "columns", "reference"), "reference.columns"),
+        limit=limit,
+        path=Path(_get(section, "path", "reference")),
     )
 
 
@@ -138,6 +159,8 @@ def parse_config(data: dict) -> Config:
     if not isinstance(min_rows, int) or isinstance(min_rows, bool) or min_rows < 1:
         raise ConfigError("quality.min_rows_for_threshold must be an integer >= 1")
 
+    reference = _parse_reference(_section(data, "reference")) if "reference" in data else None
+
     return Config(
         source=SourceConfig(
             url=str(_get(s, "url", "source")),
@@ -164,6 +187,7 @@ def parse_config(data: dict) -> Config:
             manifest_path=Path(_get(p, "manifest_path", "paths")),
         ),
         quality=QualityConfig(float(ratio), min_rows),
+        reference=reference,
     )
 
 
