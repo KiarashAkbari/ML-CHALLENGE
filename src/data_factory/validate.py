@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from .contract import (
     CLOSED_COLUMN,
@@ -17,6 +18,7 @@ from .contract import (
     ColumnType,
     ReasonCode,
 )
+from .timeutil import closed_duration
 
 _ZIP_RE = re.compile(ZIP_PATTERN)
 
@@ -25,8 +27,13 @@ def _is_blank(value: object) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
 
 
-def validate_record(row: Mapping[str, object]) -> tuple[ReasonCode, ...]:
-    """Return the reason codes a record violates; an empty tuple means it passes."""
+def validate_record(row: Mapping[str, object], zone: ZoneInfo) -> tuple[ReasonCode, ...]:
+    """Return the reason codes a record violates; an empty tuple means it passes.
+
+    Timestamps are naive local times in ``zone``. A closing time earlier than the
+    creation time is only a violation when no interpretation of the ambiguous
+    daylight-saving hour yields a non-negative duration.
+    """
     reasons: list[ReasonCode] = []
     dates: dict[str, datetime] = {}
 
@@ -50,8 +57,9 @@ def validate_record(row: Mapping[str, object]) -> tuple[ReasonCode, ...]:
         reasons.append(ReasonCode.BAD_ZIP_FORMAT)
 
     created, closed = dates.get(CREATED_COLUMN), dates.get(CLOSED_COLUMN)
-    if created is not None and closed is not None and closed < created:
-        reasons.append(ReasonCode.CLOSED_BEFORE_CREATED)
+    if created is not None and closed is not None:
+        if closed_duration(created, closed, zone).seconds is None:
+            reasons.append(ReasonCode.CLOSED_BEFORE_CREATED)
 
     if row.get(STATUS_COLUMN) == CLOSED_STATUS and _is_blank(row.get(CLOSED_COLUMN)):
         reasons.append(ReasonCode.CLOSED_WITHOUT_CLOSED_DATE)
