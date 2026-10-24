@@ -10,9 +10,6 @@ import requests
 from .config import HttpConfig
 from .errors import FetchError
 
-RETRYABLE_STATUS = frozenset({429}) | frozenset(range(500, 600))
-BACKOFF_FACTOR = 2
-
 
 def _parse_retry_after(value: str | None) -> float | None:
     if value is None:
@@ -73,7 +70,7 @@ class HttpClient:
                                 context={"url": url, "method": method},
                             )
                         return payload
-                elif status in RETRYABLE_STATUS:
+                elif status in self._config.retry_statuses:
                     reason = f"HTTP {status}"
                     retry_after = _parse_retry_after(response.headers.get("Retry-After"))
                 else:
@@ -91,4 +88,4 @@ class HttpClient:
     def _delay(self, attempt: int, retry_after: float | None) -> float:
         if retry_after is not None:
             return retry_after
-        return self._config.backoff_base_seconds * (BACKOFF_FACTOR ** attempt)
+        return self._config.backoff_base_seconds * (self._config.backoff_factor ** attempt)
