@@ -1,16 +1,19 @@
 import argparse
 import sys
+from datetime import datetime
 
 from .config import Config, ReferenceConfig, load_config
 from .errors import ConfigError, DataError, PipelineError
 from .exit_codes import ExitCode
 from .fetch import SocrataSource, fetch_all, query_fingerprint
+from .fetch_log import read_requests_total, record_requests
 from .http import HttpClient
 from .manifest import build_manifest, utc_now_iso, write_manifest
 from .pipeline import process
 from .population import build_zip_index, fetch_reference, read_reference, write_reference
 from .quality import QualityReport, classify_records, enforce_threshold
 from .quarantine import QuarantineWriter
+from .rolling import load_watermark, rolling_config
 from .store import RawPageStore
 
 DEFAULT_CONFIG = "config/default.toml"
@@ -22,6 +25,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="data-factory")
     parser.add_argument("command", nargs="?", default="run", choices=COMMANDS)
     parser.add_argument("--config", default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--since-last-run",
+        action="store_true",
+        help="only process records created since the previous run, up to today",
+    )
     return parser
 
 
@@ -46,7 +54,11 @@ def _require_raw(store: RawPageStore) -> None:
 def _fetch(cfg: Config, client: HttpClient) -> None:
     source = SocrataSource.from_env(client, cfg.source)
     store = _raw_store(cfg)
-    result = fetch_all(source, store)
+    before = client.request_count
+    try:
+        result = fetch_all(source, store)
+    finally:
+        record_requests(store.directory, client.request_count - before)
     print(
         f"pages_total={result.pages_total} pages_fetched={result.pages_fetched} "
         f"rows_fetched={result.rows_fetched} resumed_from_page={result.resumed_from_page} "
@@ -100,10 +112,12 @@ def _build(cfg: Config, requests: int, started_at: str) -> None:
         requests=requests,
         started_at=started_at,
         finished_at=utc_now_iso(),
+        case_requests_total=read_requests_total(store.directory),
     )
     write_manifest(cfg.paths.manifest_path, manifest)
     report, stats = result.report, result.stats
     print(
+        f"window={cfg.source.start_date}..{cfg.source.end_date} "
         f"total={report.total} passed={report.passed} quarantined={report.quarantined} "
         f"matched={stats.matched} missing_zip={stats.missing_zip} "
         f"unmatched_zip={stats.unmatched_zip} "
@@ -127,6 +141,9 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         cfg = load_config(args.config)
+        if args.since_last_run:
+            today = datetime.now(cfg.source.timezone).date()
+            cfg = rolling_config(cfg, load_watermark(cfg.paths.manifest_path), today)
         if args.command == "run":
             _run(cfg)
         elif args.command == "fetch":
