@@ -8,3 +8,7 @@ ENV/
 __pycache__/
 *.pyc
 .env
+# Raw data never goes to Git
+data/raw/*
+!data/raw/.gitkeep
+*.egg-info/
