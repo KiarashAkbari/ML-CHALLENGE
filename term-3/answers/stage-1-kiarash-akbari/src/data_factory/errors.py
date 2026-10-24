@@ -20,3 +20,6 @@ class FetchError(PipelineError):
 
 class DataError(PipelineError):
     exit_code = ExitCode.DATA
+
+class QuarantineThresholdError(DataError):
+    """Too large a share of records violated the dataset contract."""
