@@ -12,6 +12,7 @@ from data_factory.fetch import (
     SocrataSource, build_params, build_where, fetch_all, query_fingerprint,
 )
 from data_factory.store import RawPageStore
+from zoneinfo import ZoneInfo
 
 
 def make_cfg(**overrides) -> SourceConfig:
@@ -21,6 +22,7 @@ def make_cfg(**overrides) -> SourceConfig:
         columns=("unique_key", "created_date"),
         start_date=date(2025, 1, 1), end_date=date(2025, 6, 30),
         page_size=10, app_token_env="TEST_TOKEN",
+        timezone=ZoneInfo("America/New_York")
     )
     base.update(overrides)
     return SourceConfig(**base)
