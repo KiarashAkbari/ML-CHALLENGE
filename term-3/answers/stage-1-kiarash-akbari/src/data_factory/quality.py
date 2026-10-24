@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from .contract import UNIQUE_KEY, ReasonCode
 from .validate import validate_record
-
+from .errors import QuarantineThresholdError
 
 @dataclass(frozen=True)
 class ClassifiedRecord:
@@ -55,3 +55,23 @@ def classify_records(
         result = ClassifiedRecord(row, tuple(reasons))
         report.add(result.reasons)
         yield result
+
+def enforce_threshold(report: QualityReport, *, max_ratio: float, min_rows: int) -> None:
+    """Fail the run when too large a share of the data was quarantined."""
+    if report.total == 0:
+        return
+    nothing_passed = report.passed == 0
+    over_limit = report.total >= min_rows and report.quarantine_ratio > max_ratio
+    if nothing_passed or over_limit:
+        raise QuarantineThresholdError(
+            f"Quarantined {report.quarantined} of {report.total} records "
+            f"({report.quarantine_ratio:.4%}); limit is {max_ratio:.4%}",
+            context={
+                "total": report.total,
+                "quarantined": report.quarantined,
+                "ratio": report.quarantine_ratio,
+                "max_ratio": max_ratio,
+                "min_rows": min_rows,
+                "by_reason": {c.value: n for c, n in report.by_reason.items()},
+            },
+        )

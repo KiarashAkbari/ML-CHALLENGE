@@ -31,6 +31,7 @@ manifest_path = "m.json"
 
 [quality]
 max_quarantine_ratio = 0.05
+min_rows_for_threshold = 1000
 """
 
 
@@ -89,6 +90,25 @@ class ConfigTests(unittest.TestCase):
     def test_missing_section(self):
         with self.assertRaises(ConfigError):
             self._load(VALID.split("[quality]")[0])
+
+    def test_quality_settings_are_loaded(self):
+        cfg = self._load(VALID)
+        self.assertEqual(cfg.quality.max_quarantine_ratio, 0.05)
+        self.assertEqual(cfg.quality.min_rows_for_threshold, 1000)
+
+    def test_invalid_min_rows(self):
+        for bad in ("0", "-5", "1.5", "true"):
+            with self.subTest(value=bad):
+                text = VALID.replace(
+                    "min_rows_for_threshold = 1000", f"min_rows_for_threshold = {bad}"
+                )
+                with self.assertRaisesRegex(ConfigError, "min_rows_for_threshold"):
+                    self._load(text)
+
+    def test_missing_min_rows(self):
+        text = VALID.replace("min_rows_for_threshold = 1000\n", "")
+        with self.assertRaisesRegex(ConfigError, "min_rows_for_threshold"):
+            self._load(text)
 
 
 if __name__ == "__main__":

@@ -33,3 +33,4 @@ manifest_path = "data/run_manifest.json"
 
 [quality]
 max_quarantine_ratio = 0.01
+min_rows_for_threshold = 1000
