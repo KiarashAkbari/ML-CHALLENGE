@@ -12,6 +12,7 @@ from .config import SourceConfig
 from .errors import FetchError
 from .http import HttpClient
 from .store import RawPageStore
+from .schema import check_page_schema
 
 TOKEN_HEADER = "X-App-Token"
 ORDER_BY = "created_date,unique_key"
@@ -73,6 +74,7 @@ class SocrataSource:
         if not isinstance(payload, list) or not all(isinstance(r, dict) for r in payload):
             raise FetchError("Expected a JSON array of records",
                              context={"offset": offset})
+        check_page_schema(payload, self._cfg.columns, offset=offset)
         return payload
 
 

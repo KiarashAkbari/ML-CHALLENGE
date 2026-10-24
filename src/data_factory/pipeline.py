@@ -5,7 +5,7 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from .clean import JoinStats, clean_stream
+from .clean import CLEAN_COLUMNS, JoinStats, clean_stream
 from .config import Config
 from .errors import QuarantineThresholdError
 from .outputs import (
@@ -17,12 +17,14 @@ from .outputs import (
     write_wide,
 )
 from .population import ZipArea
+from .profile import REPORT_FILENAME, QualityProfile, write_profile
 from .quality import ClassifiedRecord, QualityReport, classify_records, enforce_threshold
 from .quarantine import QuarantineWriter
 
 OUTPUT_DATASET = "dataset"
 OUTPUT_WIDE = "wide_table"
 OUTPUT_QUARANTINE = "quarantine"
+OUTPUT_QUALITY = "quality_report"
 
 
 @dataclass(frozen=True)
@@ -52,8 +54,10 @@ def process(
     aggregator = AreaMonthAggregator(
         months_between(cfg.source.start_date, cfg.source.end_date)
     )
+    profile = QualityProfile(CLEAN_COLUMNS)
     dataset_path = cfg.paths.curated_dir / DATASET_FILENAME
     wide_path = cfg.paths.curated_dir / WIDE_FILENAME
+    quality_path = cfg.paths.curated_dir / REPORT_FILENAME
 
     threshold_error: QuarantineThresholdError | None = None
     with QuarantineWriter(cfg.paths.quarantine_dir) as quarantine:
@@ -65,6 +69,7 @@ def process(
                 for cleaned in clean_stream(classified, zone, zip_index, stats):
                     dataset.write(cleaned)
                     aggregator.add(cleaned)
+                    profile.add(cleaned)
                 enforce_threshold(
                     report,
                     max_ratio=cfg.quality.max_quarantine_ratio,
@@ -76,6 +81,7 @@ def process(
         raise threshold_error
 
     write_wide(wide_path, aggregator)
+    write_profile(quality_path, profile)
     return ProcessResult(
         report,
         stats,
@@ -83,5 +89,6 @@ def process(
             OUTPUT_DATASET: dataset_path,
             OUTPUT_WIDE: wide_path,
             OUTPUT_QUARANTINE: quarantine.path,
+            OUTPUT_QUALITY: quality_path,
         },
     )

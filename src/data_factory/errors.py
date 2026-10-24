@@ -23,3 +23,6 @@ class DataError(PipelineError):
 
 class QuarantineThresholdError(DataError):
     """Too large a share of records violated the dataset contract."""
+
+class SchemaDriftError(DataError):
+    """The source no longer matches the expected columns or value types."""
