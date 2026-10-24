@@ -93,7 +93,7 @@ by_type.round(3)
 """)
 
 code("""
-a.plot_median_by(by_type, "میانه‌ی ساعت تا بستن، بر اساس نوع شکایت")
+a.plot_median_by(by_type, "Median hours to close by complaint type")
 """)
 
 md("""
@@ -107,7 +107,7 @@ by_borough.round(3)
 """)
 
 code("""
-a.plot_median_by(by_borough, "میانه‌ی ساعت تا بستن، بر اساس بخش شهر")
+a.plot_median_by(by_borough, "Median hours to close by borough")
 """)
 
 md("""
@@ -123,7 +123,7 @@ md("""
 
 code("""
 trend = a.monthly_median(df)
-a.plot_monthly_trend(trend, "میانه‌ی ساعت تا بستن، به تفکیک ماه ثبت")
+a.plot_monthly_trend(trend, "Median hours to close by month")
 """)
 
 code("""
