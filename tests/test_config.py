@@ -23,7 +23,7 @@ backoff_base_seconds = 1.5
 
 [paths]
 raw_dir = "raw"
-processed_dir = "out"
+curated_dir = "out"
 quarantine_dir = "q"
 manifest_path = "m.json"
 
@@ -44,6 +44,16 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(cfg.source.page_size, 1000)
         self.assertEqual(cfg.http.max_retries, 3)
         self.assertEqual(cfg.source.complaint_types, ("Noise - Residential",))
+
+    def test_paths_use_curated_dir(self):
+        cfg = self._load(VALID)
+        self.assertEqual(cfg.paths.curated_dir, Path("out"))
+        self.assertEqual(cfg.paths.raw_dir, Path("raw"))
+
+    def test_old_processed_dir_key_rejected(self):
+        bad = VALID.replace("curated_dir", "processed_dir")
+        with self.assertRaises(ConfigError):
+            self._load(bad)
 
     def test_missing_file(self):
         with self.assertRaises(ConfigError):
