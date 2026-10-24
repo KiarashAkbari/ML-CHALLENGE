@@ -35,3 +35,9 @@ manifest_path = "data/run_manifest.json"
 [quality]
 max_quarantine_ratio = 0.01
 min_rows_for_threshold = 1000
+
+[reference]
+url = "https://data.cityofnewyork.us/resource/pri4-ifjk.json"
+columns = ["modzcta", "label", "pop_est"]
+limit = 500
+path = "data/raw/reference/modzcta.json"
