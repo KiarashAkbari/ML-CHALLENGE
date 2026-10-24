@@ -25,7 +25,7 @@ backoff_base_seconds = 2.0
 
 [paths]
 raw_dir = "data/raw"
-processed_dir = "data/processed"
+curated_dir = "data/curated"
 quarantine_dir = "data/quarantine"
 manifest_path = "data/run_manifest.json"
 
