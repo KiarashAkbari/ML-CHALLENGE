@@ -5,6 +5,7 @@ import tomllib
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .errors import ConfigError
 
@@ -23,6 +24,7 @@ class SourceConfig:
     end_date: date
     page_size: int
     app_token_env: str
+    timezone: ZoneInfo
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,7 @@ class PathsConfig:
 @dataclass(frozen=True)
 class QualityConfig:
     max_quarantine_ratio: float
+    min_rows_for_threshold: int
 
 
 @dataclass(frozen=True)
@@ -72,6 +75,15 @@ def _str_tuple(value, label: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not value or not all(isinstance(v, str) for v in value):
         raise ConfigError(f"{label} must be a non-empty list of strings")
     return tuple(value)
+
+
+def _zone(value) -> ZoneInfo:
+    if not isinstance(value, str):
+        raise ConfigError("source.timezone must be an IANA time zone name")
+    try:
+        return ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ConfigError(f"source.timezone is not a known time zone: {value}") from exc
 
 
 def _is_http_status(value) -> bool:
@@ -122,6 +134,10 @@ def parse_config(data: dict) -> Config:
     if not isinstance(ratio, (int, float)) or not 0 < ratio < 1:
         raise ConfigError("quality.max_quarantine_ratio must be in (0, 1)")
 
+    min_rows = _get(q, "min_rows_for_threshold", "quality")
+    if not isinstance(min_rows, int) or isinstance(min_rows, bool) or min_rows < 1:
+        raise ConfigError("quality.min_rows_for_threshold must be an integer >= 1")
+
     return Config(
         source=SourceConfig(
             url=str(_get(s, "url", "source")),
@@ -132,6 +148,7 @@ def parse_config(data: dict) -> Config:
             end_date=end,
             page_size=page_size,
             app_token_env=str(_get(s, "app_token_env", "source")),
+            timezone=_zone(_get(s, "timezone", "source")),
         ),
         http=HttpConfig(
             timeout_seconds=float(timeout),
@@ -146,7 +163,7 @@ def parse_config(data: dict) -> Config:
             quarantine_dir=Path(_get(p, "quarantine_dir", "paths")),
             manifest_path=Path(_get(p, "manifest_path", "paths")),
         ),
-        quality=QualityConfig(float(ratio)),
+        quality=QualityConfig(float(ratio), min_rows),
     )
 
 
