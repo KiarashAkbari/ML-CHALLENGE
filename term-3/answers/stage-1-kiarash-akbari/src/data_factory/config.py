@@ -1,0 +1,136 @@
+"""Typed, validated configuration loaded from TOML."""
+from __future__ import annotations
+
+import tomllib
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+
+from .errors import ConfigError
+
+MAX_SOCRATA_PAGE = 50_000
+
+
+@dataclass(frozen=True)
+class SourceConfig:
+    url: str
+    agency: str
+    complaint_types: tuple[str, ...]
+    columns: tuple[str, ...]
+    start_date: date
+    end_date: date
+    page_size: int
+    app_token_env: str
+
+
+@dataclass(frozen=True)
+class HttpConfig:
+    timeout_seconds: float
+    max_retries: int
+    backoff_base_seconds: float
+
+
+@dataclass(frozen=True)
+class PathsConfig:
+    raw_dir: Path
+    processed_dir: Path
+    quarantine_dir: Path
+    manifest_path: Path
+
+
+@dataclass(frozen=True)
+class QualityConfig:
+    max_quarantine_ratio: float
+
+
+@dataclass(frozen=True)
+class Config:
+    source: SourceConfig
+    http: HttpConfig
+    paths: PathsConfig
+    quality: QualityConfig
+
+
+def _section(data: dict, name: str) -> dict:
+    section = data.get(name)
+    if not isinstance(section, dict):
+        raise ConfigError(f"Missing config section: [{name}]")
+    return section
+
+
+def _get(section: dict, key: str, name: str):
+    if key not in section:
+        raise ConfigError(f"Missing config key: {name}.{key}")
+    return section[key]
+
+
+def _str_tuple(value, label: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value or not all(isinstance(v, str) for v in value):
+        raise ConfigError(f"{label} must be a non-empty list of strings")
+    return tuple(value)
+
+
+def parse_config(data: dict) -> Config:
+    s = _section(data, "source")
+    h = _section(data, "http")
+    p = _section(data, "paths")
+    q = _section(data, "quality")
+
+    start = _get(s, "start_date", "source")
+    end = _get(s, "end_date", "source")
+    if not isinstance(start, date) or not isinstance(end, date):
+        raise ConfigError("source.start_date and source.end_date must be TOML dates")
+    if start > end:
+        raise ConfigError("source.start_date must not be after source.end_date")
+
+    page_size = _get(s, "page_size", "source")
+    if not isinstance(page_size, int) or not 1 <= page_size <= MAX_SOCRATA_PAGE:
+        raise ConfigError(f"source.page_size must be an integer in 1..{MAX_SOCRATA_PAGE}")
+
+    retries = _get(h, "max_retries", "http")
+    if not isinstance(retries, int) or retries < 0:
+        raise ConfigError("http.max_retries must be an integer >= 0")
+
+    timeout = _get(h, "timeout_seconds", "http")
+    backoff = _get(h, "backoff_base_seconds", "http")
+    if not isinstance(timeout, (int, float)) or timeout <= 0:
+        raise ConfigError("http.timeout_seconds must be > 0")
+    if not isinstance(backoff, (int, float)) or backoff < 0:
+        raise ConfigError("http.backoff_base_seconds must be >= 0")
+
+    ratio = _get(q, "max_quarantine_ratio", "quality")
+    if not isinstance(ratio, (int, float)) or not 0 < ratio < 1:
+        raise ConfigError("quality.max_quarantine_ratio must be in (0, 1)")
+
+    return Config(
+        source=SourceConfig(
+            url=str(_get(s, "url", "source")),
+            agency=str(_get(s, "agency", "source")),
+            complaint_types=_str_tuple(_get(s, "complaint_types", "source"), "source.complaint_types"),
+            columns=_str_tuple(_get(s, "columns", "source"), "source.columns"),
+            start_date=start,
+            end_date=end,
+            page_size=page_size,
+            app_token_env=str(_get(s, "app_token_env", "source")),
+        ),
+        http=HttpConfig(float(timeout), retries, float(backoff)),
+        paths=PathsConfig(
+            raw_dir=Path(_get(p, "raw_dir", "paths")),
+            processed_dir=Path(_get(p, "processed_dir", "paths")),
+            quarantine_dir=Path(_get(p, "quarantine_dir", "paths")),
+            manifest_path=Path(_get(p, "manifest_path", "paths")),
+        ),
+        quality=QualityConfig(float(ratio)),
+    )
+
+
+def load_config(path: str | Path) -> Config:
+    path = Path(path)
+    try:
+        with path.open("rb") as fh:
+            data = tomllib.load(fh)
+    except FileNotFoundError as exc:
+        raise ConfigError(f"Config file not found: {path}") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigError(f"Invalid TOML in {path}: {exc}") from exc
+    return parse_config(data)
