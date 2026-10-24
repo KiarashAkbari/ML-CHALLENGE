@@ -17,6 +17,7 @@ start_date = 2025-01-01
 end_date = 2026-06-30
 page_size = 50000
 app_token_env = "SOCRATA_APP_TOKEN"
+timezone = "America/New_York"
 
 [http]
 timeout_seconds = 120
