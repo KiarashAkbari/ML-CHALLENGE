@@ -34,10 +34,16 @@ class FakeSession:
         return outcome
 
 
-def make_client(outcomes, retries=3):
+def make_client(outcomes, retries=3, factor=2.0):
     session = FakeSession(outcomes)
     sleeps = []
-    config = HttpConfig(timeout_seconds=5.0, max_retries=retries, backoff_base_seconds=2.0)
+    config = HttpConfig(
+        timeout_seconds=5.0,
+        max_retries=retries,
+        backoff_base_seconds=2.0,
+        backoff_factor=factor,
+        retry_statuses=frozenset({429, 500, 503}),
+    )
     return HttpClient(config, session=session, sleep=sleeps.append), session, sleeps
 
 
@@ -75,6 +81,14 @@ class HttpClientTests(unittest.TestCase):
         self.assertEqual(sleeps, [])
         self.assertEqual(ctx.exception.context["status"], 404)
 
+    def test_status_outside_retry_list_not_retried(self):
+        client, session, sleeps = make_client([FakeResponse(501)])
+        with self.assertRaises(FetchError) as ctx:
+            client.get_json("https://x.test")
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(sleeps, [])
+        self.assertEqual(ctx.exception.context["status"], 501)
+
     def test_gives_up_after_max_retries(self):
         client, session, sleeps = make_client([FakeResponse(500)] * 3, retries=2)
         with self.assertRaises(FetchError) as ctx:
@@ -82,6 +96,13 @@ class HttpClientTests(unittest.TestCase):
         self.assertEqual(len(session.calls), 3)
         self.assertEqual(sleeps, [2.0, 4.0])
         self.assertEqual(ctx.exception.context["attempts"], 3)
+
+    def test_backoff_factor_comes_from_config(self):
+        client, _, sleeps = make_client(
+            [FakeResponse(503), FakeResponse(503), FakeResponse(200, [])], factor=3.0
+        )
+        client.get_json("https://x.test")
+        self.assertEqual(sleeps, [2.0, 6.0])
 
     def test_truncated_json_is_retried(self):
         client, session, _ = make_client(
