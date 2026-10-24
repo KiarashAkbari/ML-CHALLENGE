@@ -45,6 +45,7 @@ class PathsConfig:
 @dataclass(frozen=True)
 class QualityConfig:
     max_quarantine_ratio: float
+    min_rows_for_threshold: int
 
 
 @dataclass(frozen=True)
@@ -122,6 +123,10 @@ def parse_config(data: dict) -> Config:
     if not isinstance(ratio, (int, float)) or not 0 < ratio < 1:
         raise ConfigError("quality.max_quarantine_ratio must be in (0, 1)")
 
+    min_rows = _get(q, "min_rows_for_threshold", "quality")
+    if not isinstance(min_rows, int) or isinstance(min_rows, bool) or min_rows < 1:
+        raise ConfigError("quality.min_rows_for_threshold must be an integer >= 1")
+
     return Config(
         source=SourceConfig(
             url=str(_get(s, "url", "source")),
@@ -146,7 +151,7 @@ def parse_config(data: dict) -> Config:
             quarantine_dir=Path(_get(p, "quarantine_dir", "paths")),
             manifest_path=Path(_get(p, "manifest_path", "paths")),
         ),
-        quality=QualityConfig(float(ratio)),
+        quality=QualityConfig(float(ratio), min_rows),
     )
 
 
