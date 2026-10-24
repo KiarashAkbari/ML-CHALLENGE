@@ -1,0 +1,33 @@
+[source]
+url = "https://data.cityofnewyork.us/resource/erm2-nwe9.json"
+agency = "NYPD"
+complaint_types = [
+  "Noise - Residential",
+  "Noise - Street/Sidewalk",
+  "Noise - Commercial",
+  "Noise - Vehicle",
+  "Noise - Park",
+  "Noise - House of Worship",
+]
+columns = [
+  "unique_key", "created_date", "closed_date", "agency", "complaint_type",
+  "descriptor", "status", "borough", "incident_zip", "community_board",
+]
+start_date = 2025-01-01
+end_date = 2026-06-30
+page_size = 50000
+app_token_env = "SOCRATA_APP_TOKEN"
+
+[http]
+timeout_seconds = 120
+max_retries = 5
+backoff_base_seconds = 2.0
+
+[paths]
+raw_dir = "data/raw"
+processed_dir = "data/processed"
+quarantine_dir = "data/quarantine"
+manifest_path = "data/run_manifest.json"
+
+[quality]
+max_quarantine_ratio = 0.05
