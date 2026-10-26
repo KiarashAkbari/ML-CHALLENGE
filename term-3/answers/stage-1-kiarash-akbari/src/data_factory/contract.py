@@ -47,9 +47,11 @@ CONTRACT: tuple[ColumnSpec, ...] = (
     ColumnSpec(CLOSED_COLUMN, ColumnType.DATETIME, nullable=True),
     ColumnSpec("agency", ColumnType.STRING, nullable=False),
     ColumnSpec("complaint_type", ColumnType.STRING, nullable=False),
-    ColumnSpec("descriptor", ColumnType.STRING, nullable=False),
+    ColumnSpec("descriptor", ColumnType.STRING, nullable=True),
     ColumnSpec(STATUS_COLUMN, ColumnType.STRING, nullable=False),
+    # borough stays required: the source writes "Unspecified" for unknown, never null,
+    # and every grouping in the analysis uses it
     ColumnSpec("borough", ColumnType.STRING, nullable=False, allowed_values=BOROUGHS),
     ColumnSpec(ZIP_COLUMN, ColumnType.STRING, nullable=True),
-    ColumnSpec("community_board", ColumnType.STRING, nullable=False),
+    ColumnSpec("community_board", ColumnType.STRING, nullable=True),
 )

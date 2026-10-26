@@ -53,7 +53,7 @@ def validate_record(row: Mapping[str, object], zone: ZoneInfo) -> tuple[ReasonCo
             reasons.append(ReasonCode.VALUE_OUT_OF_DOMAIN)
 
     zip_value = row.get(ZIP_COLUMN)
-    if not _is_blank(zip_value) and not _ZIP_RE.fullmatch(str(zip_value)):
+    if not _is_blank(zip_value) and not _ZIP_RE.fullmatch(str(zip_value).strip()):
         reasons.append(ReasonCode.BAD_ZIP_FORMAT)
 
     created, closed = dates.get(CREATED_COLUMN), dates.get(CLOSED_COLUMN)

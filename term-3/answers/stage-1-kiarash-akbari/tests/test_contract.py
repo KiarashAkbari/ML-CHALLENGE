@@ -16,9 +16,9 @@ class ContractTests(unittest.TestCase):
         spec = next(c for c in CONTRACT if c.name == UNIQUE_KEY)
         self.assertFalse(spec.nullable)
 
-    def test_only_closed_date_and_zip_are_nullable(self):
+    def test_nullable_columns_are_exactly_the_sparse_ones(self):
         nullable = {c.name for c in CONTRACT if c.nullable}
-        self.assertEqual(nullable, {"closed_date", "incident_zip"})
+        self.assertEqual(nullable, {"closed_date", "incident_zip", "descriptor", "community_board"})
 
     def test_matches_configured_columns(self):
         config = load_config(CONFIG_PATH)
