@@ -114,7 +114,7 @@ a.duration_summary(df).round(3)
 """)
 
 code("""
-a.plot_duration_histogram(df)
+_ = a.plot_duration_histogram(df)
 """)
 
 md("""
@@ -156,7 +156,7 @@ by_type.round(3)
 """)
 
 code("""
-a.plot_median_by(by_type, "Median hours to close by complaint type")
+_ = a.plot_median_by(by_type, "Median hours to close by complaint type")
 """)
 
 md("""
@@ -170,7 +170,7 @@ by_borough.round(3)
 """)
 
 code("""
-a.plot_median_by(by_borough, "Median hours to close by borough")
+_ = a.plot_median_by(by_borough, "Median hours to close by borough")
 """)
 
 md("""
@@ -186,7 +186,7 @@ md("""
 
 code("""
 trend = a.monthly_median(df)
-a.plot_monthly_trend(trend, "Median hours to close by month")
+_ = a.plot_monthly_trend(trend, "Median hours to close by month")
 """)
 
 code("""
@@ -214,7 +214,7 @@ top
 """)
 
 code("""
-a.plot_area_rates(rates)
+_ = a.plot_area_rates(rates)
 """)
 
 code("""
@@ -245,7 +245,7 @@ md("""
 
 code("""
 counts = a.hour_weekday_counts(df)
-a.plot_hour_weekday(counts)
+_ = a.plot_hour_weekday(counts)
 """)
 
 code("""
