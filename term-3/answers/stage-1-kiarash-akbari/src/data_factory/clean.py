@@ -76,7 +76,7 @@ def clean_record(
     population; a ZIP absent from the reference keeps the row and is counted;
     an open case keeps empty closed_at and duration.
     """
-    created = datetime.strptime(str(row[CREATED_COLUMN]), DATETIME_FORMAT)
+    created = datetime.strptime(_text(row[CREATED_COLUMN]), DATETIME_FORMAT)
     created_text = created.strftime(OUTPUT_DATETIME_FORMAT)
     row_key = str(row[UNIQUE_KEY]).strip()
     if stats.max_created_at is None or created_text > stats.max_created_at:
