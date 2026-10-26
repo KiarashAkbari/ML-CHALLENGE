@@ -31,8 +31,9 @@ class EnforceThresholdTests(unittest.TestCase):
         with self.assertRaises(QuarantineThresholdError):
             check(report(5, 5))
 
-    def test_empty_report_passes(self):
-        check(report(0, 0))
+    def test_empty_report_fails(self):
+        with self.assertRaises(DataError):
+            check(report(0, 0))
 
     def test_error_uses_data_exit_code(self):
         self.assertTrue(issubclass(QuarantineThresholdError, DataError))

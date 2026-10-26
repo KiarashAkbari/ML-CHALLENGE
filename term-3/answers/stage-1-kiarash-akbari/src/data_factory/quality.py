@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from zoneinfo import ZoneInfo
 
 from .contract import UNIQUE_KEY, ReasonCode
-from .errors import QuarantineThresholdError
+from .errors import DataError, QuarantineThresholdError
 from .validate import validate_record
 
 
@@ -62,7 +62,10 @@ def classify_records(
 def enforce_threshold(report: QualityReport, *, max_ratio: float, min_rows: int) -> None:
     """Fail the run when too large a share of the data was quarantined."""
     if report.total == 0:
-        return
+        raise DataError(
+            "No records to process; refusing to publish empty outputs",
+            context={"total": 0},
+        )
     nothing_passed = report.passed == 0
     over_limit = report.total >= min_rows and report.quarantine_ratio > max_ratio
     if nothing_passed or over_limit:

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from config_helpers import make_config
-from data_factory.errors import QuarantineThresholdError
+from data_factory.errors import DataError, QuarantineThresholdError
 from data_factory.manifest import build_manifest, write_manifest
 from data_factory.outputs import sha256_file
 from data_factory.pipeline import OUTPUT_DATASET, process
@@ -55,9 +55,46 @@ class ProcessTests(unittest.TestCase):
             cfg = make_config(Path(tmp), max_ratio=0.1)
             with self.assertRaises(QuarantineThresholdError):
                 process([good("1"), bad("2")], cfg, INDEX)
-            self.assertTrue((Path(tmp) / "quarantine" / "quarantine.jsonl").exists())
+            self.assertTrue((Path(tmp) / "quarantine" / "quarantine.failed.jsonl").exists())
+            self.assertFalse((Path(tmp) / "quarantine" / "quarantine.jsonl").exists())
             self.assertFalse((Path(tmp) / "curated" / "cases.csv").exists())
             self.assertFalse((Path(tmp) / "curated" / "complaints_by_area_month.csv").exists())
+
+    def test_failed_run_leaves_the_last_good_output_set_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = make_config(Path(tmp), max_ratio=0.1)
+            process([good("1"), good("2", "02")], cfg, INDEX)
+            paths = [
+                Path(tmp) / "curated" / "cases.csv",
+                Path(tmp) / "curated" / "complaints_by_area_month.csv",
+                Path(tmp) / "quarantine" / "quarantine.jsonl",
+            ]
+            before = [p.read_bytes() for p in paths]
+            with self.assertRaises(QuarantineThresholdError):
+                process([good("3"), bad("4")], cfg, INDEX)
+            self.assertEqual([p.read_bytes() for p in paths], before)
+            failed = Path(tmp) / "quarantine" / "quarantine.failed.jsonl"
+            self.assertIn("VALUE_OUT_OF_DOMAIN", failed.read_text("utf-8"))
+
+    def test_successful_run_removes_a_stale_failed_quarantine(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = make_config(Path(tmp), max_ratio=0.1)
+            failed = Path(tmp) / "quarantine" / "quarantine.failed.jsonl"
+            with self.assertRaises(QuarantineThresholdError):
+                process([good("1"), bad("2")], cfg, INDEX)
+            self.assertTrue(failed.exists())
+            process([good("1"), good("2", "02")], cfg, INDEX)
+            self.assertFalse(failed.exists())
+
+    def test_empty_input_fails_and_keeps_previous_outputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = make_config(Path(tmp))
+            process([good("1")], cfg, INDEX)
+            cases = Path(tmp) / "curated" / "cases.csv"
+            before = cases.read_bytes()
+            with self.assertRaises(DataError):
+                process([], cfg, INDEX)
+            self.assertEqual(cases.read_bytes(), before)
 
     def test_two_independent_runs_give_identical_output_hashes(self):
         runs = []
