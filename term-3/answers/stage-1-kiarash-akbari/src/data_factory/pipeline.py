@@ -43,6 +43,14 @@ def _tee_quarantine(
         yield record
 
 
+def _borough_conflicts(stats: JoinStats) -> list[dict]:
+    return [
+        {"modzcta": modzcta, "boroughs": sorted(areas)}
+        for modzcta, areas in stats.borough_by_modzcta.items()
+        if len(areas) > 1
+    ]
+
+
 def process(
     rows: Iterable[Mapping[str, object]],
     cfg: Config,
@@ -81,8 +89,13 @@ def process(
     if threshold_error is not None:
         raise threshold_error
 
+    conflicts = _borough_conflicts(stats)
+    extra = {
+        "borough_modzcta_conflicts": conflicts,
+        "borough_modzcta_conflict_count": len(conflicts),
+    }
     write_wide(wide_path, aggregator)
-    write_profile(quality_path, profile)
+    write_profile(quality_path, profile, extra)
     return ProcessResult(
         report,
         stats,

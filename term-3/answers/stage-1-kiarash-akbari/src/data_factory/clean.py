@@ -55,6 +55,7 @@ class JoinStats:
     max_created_at: str | None = None
     keys_at_max_created: list[str] = field(default_factory=list)
     unmatched_by_zip: Counter[str] = field(default_factory=Counter)
+    borough_by_modzcta: dict[str, set[str]] = field(default_factory=dict)
 
 
 def _text(value: object) -> str | None:
@@ -76,7 +77,7 @@ def clean_record(
     population; a ZIP absent from the reference keeps the row and is counted;
     an open case keeps empty closed_at and duration.
     """
-    created = datetime.strptime(str(row[CREATED_COLUMN]), DATETIME_FORMAT)
+    created = datetime.strptime(_text(row[CREATED_COLUMN]), DATETIME_FORMAT)
     created_text = created.strftime(OUTPUT_DATETIME_FORMAT)
     row_key = str(row[UNIQUE_KEY]).strip()
     if stats.max_created_at is None or created_text > stats.max_created_at:
@@ -111,6 +112,9 @@ def clean_record(
     else:
         stats.matched += 1
         stats.null_population += area.population is None
+        borough = _text(row.get("borough"))
+        if borough:
+            stats.borough_by_modzcta.setdefault(area.modzcta, set()).add(borough)
 
     cleaned: dict[str, object] = {
         UNIQUE_KEY: str(row[UNIQUE_KEY]).strip(),
