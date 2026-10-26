@@ -12,8 +12,8 @@ from .manifest import build_manifest, utc_now_iso, write_manifest
 from .pipeline import process
 from .population import build_zip_index, fetch_reference, read_reference, write_reference
 from .quality import QualityReport, classify_records, enforce_threshold
-from .quarantine import QuarantineWriter
-from .rolling import load_watermark, rolling_config
+from .quarantine import VALIDATE_FILENAME, QuarantineWriter
+from .rolling import after_watermark, load_mark, load_watermark, rolling_config
 from .store import RawPageStore
 
 DEFAULT_CONFIG = "config/default.toml"
@@ -84,7 +84,7 @@ def _validate(cfg: Config) -> None:
     store = _raw_store(cfg)
     _require_raw(store)
     report = QualityReport()
-    with QuarantineWriter(cfg.paths.quarantine_dir) as writer:
+    with QuarantineWriter(cfg.paths.quarantine_dir, VALIDATE_FILENAME) as writer:
         for record in classify_records(store.iter_rows(), report, cfg.source.timezone):
             if not record.is_valid:
                 writer.write(record)
@@ -100,12 +100,12 @@ def _validate(cfg: Config) -> None:
     )
 
 
-def _build(cfg: Config, requests: int, started_at: str) -> None:
+def _build(cfg: Config, requests: int, started_at: str, mark=None) -> None:
     ref = _reference_config(cfg)
     zip_index = build_zip_index(read_reference(ref.path))
     store = _raw_store(cfg)
     _require_raw(store)
-    result = process(store.iter_rows(), cfg, zip_index)
+    result = process(after_watermark(store.iter_rows(), mark), cfg, zip_index)
     manifest = build_manifest(
         cfg=cfg,
         result=result,
@@ -127,25 +127,27 @@ def _build(cfg: Config, requests: int, started_at: str) -> None:
     )
 
 
-def _run(cfg: Config) -> None:
+def _run(cfg: Config, mark=None) -> None:
     started_at = utc_now_iso()
     client = HttpClient(cfg.http)
     _fetch(cfg, client)
     ref = _reference_config(cfg)
     if not ref.path.is_file():
         _fetch_reference(cfg, client)
-    _build(cfg, client.request_count, started_at)
+    _build(cfg, client.request_count, started_at, mark)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         cfg = load_config(args.config)
+        mark = None
         if args.since_last_run:
             today = datetime.now(cfg.source.timezone).date()
+            mark = load_mark(cfg.paths.manifest_path)
             cfg = rolling_config(cfg, load_watermark(cfg.paths.manifest_path), today)
         if args.command == "run":
-            _run(cfg)
+            _run(cfg, mark)
         elif args.command == "fetch":
             _fetch(cfg, HttpClient(cfg.http))
         elif args.command == "fetch-reference":
@@ -153,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "validate":
             _validate(cfg)
         else:
-            _build(cfg, 0, utc_now_iso())
+            _build(cfg, 0, utc_now_iso(), mark)
         return int(ExitCode.OK)
     except PipelineError as exc:
         print(f"error: {exc}", file=sys.stderr)
