@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
@@ -17,11 +18,27 @@ UNKNOWN_VERSION = "unknown"
 TMP_SUFFIX = ".tmp"
 
 
+def _git_revision() -> str | None:
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+            cwd=Path(__file__).resolve().parent,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() or None
+
+
 def code_version() -> str:
     try:
         return metadata.version(PACKAGE_NAME)
     except metadata.PackageNotFoundError:
-        return UNKNOWN_VERSION
+        revision = _git_revision()
+        return f"git:{revision}" if revision else UNKNOWN_VERSION
 
 
 def utc_now_iso() -> str:
