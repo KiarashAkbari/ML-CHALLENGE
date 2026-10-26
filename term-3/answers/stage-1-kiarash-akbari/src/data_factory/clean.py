@@ -53,6 +53,7 @@ class JoinStats:
     null_population: int = 0
     ambiguous: int = 0
     max_created_at: str | None = None
+    keys_at_max_created: list[str] = field(default_factory=list)
     unmatched_by_zip: Counter[str] = field(default_factory=Counter)
 
 
@@ -77,8 +78,12 @@ def clean_record(
     """
     created = datetime.strptime(str(row[CREATED_COLUMN]), DATETIME_FORMAT)
     created_text = created.strftime(OUTPUT_DATETIME_FORMAT)
+    row_key = str(row[UNIQUE_KEY]).strip()
     if stats.max_created_at is None or created_text > stats.max_created_at:
         stats.max_created_at = created_text
+        stats.keys_at_max_created = [row_key]
+    elif created_text == stats.max_created_at:
+        stats.keys_at_max_created.append(row_key)
 
     closed_source = _text(row.get(CLOSED_COLUMN))
     closed = datetime.strptime(closed_source, DATETIME_FORMAT) if closed_source else None

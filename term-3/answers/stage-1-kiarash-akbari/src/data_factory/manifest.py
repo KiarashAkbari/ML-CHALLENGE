@@ -48,7 +48,10 @@ def build_manifest(
             "end_date": cfg.source.end_date.isoformat(),
             "timezone": cfg.source.timezone.key,
         },
-        "watermark": {"max_created_at": stats.max_created_at},
+        "watermark": {
+            "max_created_at": stats.max_created_at,
+            "keys_at_max_created_at": sorted(stats.keys_at_max_created),
+        },
         "restriction": {
             "agency": cfg.source.agency,
             "complaint_types": list(cfg.source.complaint_types),
