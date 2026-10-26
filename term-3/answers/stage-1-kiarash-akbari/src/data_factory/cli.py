@@ -1,4 +1,5 @@
 import argparse
+import json
 import sys
 from datetime import datetime
 
@@ -159,4 +160,9 @@ def main(argv: list[str] | None = None) -> int:
         return int(ExitCode.OK)
     except PipelineError as exc:
         print(f"error: {exc}", file=sys.stderr)
+        if exc.context:
+            print(
+                json.dumps(exc.context, ensure_ascii=False, sort_keys=True),
+                file=sys.stderr,
+            )
         return int(exc.exit_code)
