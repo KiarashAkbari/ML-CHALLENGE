@@ -3,13 +3,22 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
-from .contract import CONTRACT
+from .contract import CLOSED_COLUMN, CONTRACT
 from .errors import SchemaDriftError
+
+NULLABLE_CHECK_MIN_ROWS = 1000
+# an all-open page legitimately carries no closed_date
+MAY_BE_ABSENT = frozenset({CLOSED_COLUMN})
 
 
 def required_columns(columns: Iterable[str]) -> frozenset[str]:
     wanted = set(columns)
     return frozenset(spec.name for spec in CONTRACT if not spec.nullable and spec.name in wanted)
+
+
+def nullable_columns(columns: Iterable[str]) -> frozenset[str]:
+    wanted = set(columns)
+    return frozenset(spec.name for spec in CONTRACT if spec.nullable and spec.name in wanted)
 
 
 def check_page_schema(
@@ -33,7 +42,10 @@ def check_page_schema(
                     f"Column {column} changed type: expected text, got {type(value).__name__}",
                     context={"column": column, "offset": offset},
                 )
-    missing = sorted(required_columns(expected) - present)
+    absent = required_columns(expected) - present
+    if len(rows) >= NULLABLE_CHECK_MIN_ROWS:
+        absent |= nullable_columns(expected) - MAY_BE_ABSENT - present
+    missing = sorted(absent)
     if missing:
         raise SchemaDriftError(
             f"Required column(s) absent from every row of a page: {', '.join(missing)}",

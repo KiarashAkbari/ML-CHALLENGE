@@ -38,7 +38,7 @@ class ValidateRecordTests(unittest.TestCase):
         self.assertEqual(validate_record(row), (ReasonCode.MISSING_REQUIRED_FIELD,))
 
     def test_blank_required_field_counts_as_missing(self):
-        row = make_row(descriptor=" ")
+        row = make_row(complaint_type=" ")
         self.assertEqual(validate_record(row), (ReasonCode.MISSING_REQUIRED_FIELD,))
 
     def test_missing_unique_key(self):
@@ -49,13 +49,29 @@ class ValidateRecordTests(unittest.TestCase):
         self.assertEqual(validate_record(make_row(incident_zip=None)), ())
 
     def test_bad_zip_formats(self):
-        for bad in ("N/A", "1046", "104666", " 10466", "00000"):
+        for bad in ("N/A", "1046", "104666", "00000"):
             with self.subTest(zip=bad):
                 row = make_row(incident_zip=bad)
                 self.assertEqual(validate_record(row), (ReasonCode.BAD_ZIP_FORMAT,))
 
     def test_zip_starting_with_zeros_but_not_all_zeros_is_valid(self):
         self.assertEqual(validate_record(make_row(incident_zip="00083")), ())
+
+    def test_zip_with_surrounding_whitespace_is_valid(self):
+        for padded in (" 10466", "10466 ", "\t10466\n"):
+            with self.subTest(zip=padded):
+                self.assertEqual(validate_record(make_row(incident_zip=padded)), ())
+
+    def test_missing_descriptor_and_community_board_are_allowed(self):
+        row = make_row()
+        del row["descriptor"]
+        row["community_board"] = None
+        self.assertEqual(validate_record(row), ())
+
+    def test_missing_borough_is_still_required(self):
+        row = make_row()
+        del row["borough"]
+        self.assertEqual(validate_record(row), (ReasonCode.MISSING_REQUIRED_FIELD,))
 
     def test_unparseable_created_date(self):
         row = make_row(created_date="03/01/2025")
