@@ -67,12 +67,17 @@ class QualityProfile:
         }
 
 
-def write_profile(path: Path, profile: QualityProfile) -> None:
+def write_profile(
+    path: Path, profile: QualityProfile, extra: dict | None = None
+) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + TMP_SUFFIX)
+    payload = profile.as_dict()
+    if extra:
+        payload.update(extra)
     with tmp.open("w", encoding="utf-8", newline="\n") as fh:
-        json.dump(profile.as_dict(), fh, sort_keys=True, indent=2, ensure_ascii=False)
+        json.dump(payload, fh, sort_keys=True, indent=2, ensure_ascii=False)
         fh.write("\n")
         fh.flush()
         os.fsync(fh.fileno())

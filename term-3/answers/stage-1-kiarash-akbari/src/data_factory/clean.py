@@ -55,6 +55,7 @@ class JoinStats:
     max_created_at: str | None = None
     keys_at_max_created: list[str] = field(default_factory=list)
     unmatched_by_zip: Counter[str] = field(default_factory=Counter)
+    borough_by_modzcta: dict[str, set[str]] = field(default_factory=dict)
 
 
 def _text(value: object) -> str | None:
@@ -111,6 +112,9 @@ def clean_record(
     else:
         stats.matched += 1
         stats.null_population += area.population is None
+        borough = _text(row.get("borough"))
+        if borough:
+            stats.borough_by_modzcta.setdefault(area.modzcta, set()).add(borough)
 
     cleaned: dict[str, object] = {
         UNIQUE_KEY: str(row[UNIQUE_KEY]).strip(),
