@@ -8,6 +8,7 @@ from pathlib import Path
 from .quality import ClassifiedRecord
 
 QUARANTINE_FILENAME = "quarantine.jsonl"
+FAILED_FILENAME = "quarantine.failed.jsonl"
 TMP_SUFFIX = ".tmp"
 
 
@@ -16,11 +17,17 @@ class QuarantineWriter:
         self._final = Path(directory) / QUARANTINE_FILENAME
         self._tmp = self._final.with_name(self._final.name + TMP_SUFFIX)
         self._fh = None
+        self._failed = False
         self.count = 0
 
     @property
     def path(self) -> Path:
         return self._final
+
+    def mark_failed(self) -> None:
+        # publish this run's quarantine under a separate name; the last good set stays intact
+        self._final = self._final.with_name(FAILED_FILENAME)
+        self._failed = True
 
     def __enter__(self) -> "QuarantineWriter":
         self._final.parent.mkdir(parents=True, exist_ok=True)
@@ -47,3 +54,5 @@ class QuarantineWriter:
         os.fsync(fh.fileno())
         fh.close()
         os.replace(self._tmp, self._final)
+        if not self._failed:
+            self._final.with_name(FAILED_FILENAME).unlink(missing_ok=True)
