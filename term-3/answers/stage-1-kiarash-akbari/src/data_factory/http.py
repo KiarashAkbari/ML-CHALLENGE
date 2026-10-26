@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import requests
@@ -10,14 +12,23 @@ import requests
 from .config import HttpConfig
 from .errors import FetchError
 
+MAX_RETRY_AFTER_SECONDS = 60.0
 
-def _parse_retry_after(value: str | None) -> float | None:
+
+def _parse_retry_after(value: str | None, now: datetime | None = None) -> float | None:
     if value is None:
         return None
     try:
         seconds = float(value)
     except ValueError:
-        return None
+        try:
+            when = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        current = now or datetime.now(timezone.utc)
+        return max(0.0, (when - current).total_seconds())
     return seconds if seconds >= 0 else None
 
 
@@ -87,5 +98,5 @@ class HttpClient:
 
     def _delay(self, attempt: int, retry_after: float | None) -> float:
         if retry_after is not None:
-            return retry_after
+            return min(retry_after, MAX_RETRY_AFTER_SECONDS)
         return self._config.backoff_base_seconds * (self._config.backoff_factor ** attempt)
