@@ -9,12 +9,13 @@ from .quality import ClassifiedRecord
 
 QUARANTINE_FILENAME = "quarantine.jsonl"
 FAILED_FILENAME = "quarantine.failed.jsonl"
+VALIDATE_FILENAME = "quarantine.validate.jsonl"
 TMP_SUFFIX = ".tmp"
 
 
 class QuarantineWriter:
-    def __init__(self, directory: Path) -> None:
-        self._final = Path(directory) / QUARANTINE_FILENAME
+    def __init__(self, directory: Path, filename: str = QUARANTINE_FILENAME) -> None:
+        self._final = Path(directory) / filename
         self._tmp = self._final.with_name(self._final.name + TMP_SUFFIX)
         self._fh = None
         self._failed = False
@@ -54,5 +55,5 @@ class QuarantineWriter:
         os.fsync(fh.fileno())
         fh.close()
         os.replace(self._tmp, self._final)
-        if not self._failed:
+        if not self._failed and self._final.name == QUARANTINE_FILENAME:
             self._final.with_name(FAILED_FILENAME).unlink(missing_ok=True)
