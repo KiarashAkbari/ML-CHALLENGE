@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
+from collections.abc import Iterable, Iterator, Mapping
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
@@ -65,3 +66,59 @@ def rolling_config(cfg: Config, since: date, today: date) -> Config:
         manifest_path=rolling_manifest_path(cfg.paths.manifest_path),
     )
     return replace(cfg, source=replace(cfg.source, start_date=since, end_date=today), paths=paths)
+
+CREATED_LENGTH = 19
+
+
+@dataclass(frozen=True)
+class Watermark:
+    created_at: str
+    keys: frozenset[str]
+
+
+def _read_mark(path: Path) -> Watermark | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+    watermark = data.get("watermark") if isinstance(data, dict) else None
+    if not isinstance(watermark, dict) or not watermark.get("max_created_at"):
+        return None
+    keys = watermark.get("keys_at_max_created_at") or []
+    return Watermark(str(watermark["max_created_at"]), frozenset(str(k) for k in keys))
+
+
+def load_mark(manifest_path: Path) -> Watermark | None:
+    """Exact position reached by the previous full or rolling run."""
+    marks = [
+        mark
+        for mark in (_read_mark(rolling_manifest_path(manifest_path)), _read_mark(manifest_path))
+        if mark is not None
+    ]
+    if not marks:
+        return None
+    latest = max(mark.created_at for mark in marks)
+    keys = frozenset().union(*(mark.keys for mark in marks if mark.created_at == latest))
+    return Watermark(latest, keys)
+
+
+def after_watermark(
+    rows: Iterable[Mapping[str, object]], mark: Watermark | None
+) -> Iterator[Mapping[str, object]]:
+    """Drop rows the previous run already processed: older rows and ties already seen.
+
+    Rows whose creation time is missing or unreadable are kept so the validator
+    quarantines them instead of this filter hiding them.
+    """
+    for row in rows:
+        if mark is None:
+            yield row
+            continue
+        created = str(row.get("created_date") or "")[:CREATED_LENGTH]
+        readable = len(created) == CREATED_LENGTH and created[4] == "-"
+        if readable:
+            if created < mark.created_at:
+                continue
+            if created == mark.created_at and str(row.get("unique_key", "")).strip() in mark.keys:
+                continue
+        yield row
