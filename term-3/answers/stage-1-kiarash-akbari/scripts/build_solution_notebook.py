@@ -30,6 +30,69 @@ md("""
 هر عددی که در متن آمده از خروجی همین نوت‌بوک قابل ردیابی است.
 """)
 
+md("""
+## ۰. اجرای کارخانه و شواهد مهندسی
+
+اگر خروجی‌های `data/curated/` موجود نباشند، کارخانه با `python -m data_factory run` اجرا می‌شود (روی clone تازه شامل دانلود حدود ۱٫۰۸ میلیون رکورد است).
+عددهای گزارش (تعداد خام، قرنطینه، join، بودجه‌ی درخواست) از `run_manifest.json` همین اجرا خوانده و در همین بخش چاپ می‌شوند.
+""")
+
+code("""
+import subprocess
+import sys
+from pathlib import Path
+
+CASES = Path("data/curated/cases.csv")
+if not CASES.is_file():
+    proc = subprocess.run(
+        [sys.executable, "-m", "data_factory", "run"],
+        capture_output=True, text=True, check=False,
+    )
+    print(proc.stdout[-2000:])
+    print(proc.stderr[-2000:])
+    proc.check_returncode()
+CASES.is_file()
+""")
+
+code("""
+import hashlib
+import json
+
+from data_factory.config import load_config
+
+cfg = load_config("config/default.toml")
+manifest = json.loads(Path(cfg.paths.manifest_path).read_text(encoding="utf-8"))
+keys = ("code_version", "window", "restriction", "records", "join", "request_budget", "requests_this_run")
+print(json.dumps({k: manifest[k] for k in keys}, indent=2, ensure_ascii=False))
+""")
+
+code("""
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+{name: sha256(info["path"]) == info["sha256"] for name, info in manifest["outputs"].items()}
+""")
+
+code("""
+quality = json.loads(Path("data/curated/data_quality_report.json").read_text(encoding="utf-8"))
+print(json.dumps(quality, indent=1, ensure_ascii=False)[:2500])
+""")
+
+code("""
+RERUN_CHECK = False  # یک بار True کن، اجرا کن و خروجی را ذخیره کن؛ چند دقیقه طول می‌کشد
+if RERUN_CHECK:
+    first = {n: i["sha256"] for n, i in manifest["outputs"].items()}
+    subprocess.run([sys.executable, "-m", "data_factory", "run"], check=True, capture_output=True, text=True)
+    again = json.loads(Path(cfg.paths.manifest_path).read_text(encoding="utf-8"))
+    second = {n: i["sha256"] for n, i in again["outputs"].items()}
+    print({"requests_second_run": again["requests_this_run"], "hashes": "SAME" if first == second else "DIFFERENT"})
+""")
+
 code("""
 from pathlib import Path
 
@@ -51,7 +114,7 @@ a.duration_summary(df).round(3)
 """)
 
 code("""
-a.plot_duration_histogram(df)
+_ = a.plot_duration_histogram(df)
 """)
 
 md("""
@@ -93,7 +156,7 @@ by_type.round(3)
 """)
 
 code("""
-a.plot_median_by(by_type, "Median hours to close by complaint type")
+_ = a.plot_median_by(by_type, "Median hours to close by complaint type")
 """)
 
 md("""
@@ -107,7 +170,7 @@ by_borough.round(3)
 """)
 
 code("""
-a.plot_median_by(by_borough, "Median hours to close by borough")
+_ = a.plot_median_by(by_borough, "Median hours to close by borough")
 """)
 
 md("""
@@ -123,7 +186,7 @@ md("""
 
 code("""
 trend = a.monthly_median(df)
-a.plot_monthly_trend(trend, "Median hours to close by month")
+_ = a.plot_monthly_trend(trend, "Median hours to close by month")
 """)
 
 code("""
@@ -151,7 +214,7 @@ top
 """)
 
 code("""
-a.plot_area_rates(rates)
+_ = a.plot_area_rates(rates)
 """)
 
 code("""
@@ -182,7 +245,7 @@ md("""
 
 code("""
 counts = a.hour_weekday_counts(df)
-a.plot_hour_weekday(counts)
+_ = a.plot_hour_weekday(counts)
 """)
 
 code("""
@@ -198,7 +261,7 @@ night_hours = [21, 22, 23, 0, 1]
 """)
 
 md("""
-**نتیجه:** اوج شکایت‌ها ساعت ۲۲ و ۲۳ است و کمترین مقدار حدود ساعت ۶ تا ۷. ساعت‌های ۲۱ تا ۱ بامداد حدود ۴۳٫۸٪ کل شکایت‌ها را دارند.
+**نتیجه:** اوج شکایت‌ها ساعت ۲۲ است و کمترین مقدار حدود ساعت ۶ تا ۷. ساعت‌های ۲۱ تا ۱ بامداد حدود ۴۳٫۸٪ کل شکایت‌ها را دارند.
 """)
 
 md("""

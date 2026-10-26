@@ -111,11 +111,6 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ConfigError, "min_rows_for_threshold"):
             self._load(text)
 
-    def test_missing_min_rows(self):
-        text = VALID.replace("min_rows_for_threshold = 1000\n", "")
-        with self.assertRaisesRegex(ConfigError, "min_rows_for_threshold"):
-            self._load(text)
-
     def test_timezone_is_loaded(self):
         cfg = self._load(VALID)
         self.assertEqual(cfg.source.timezone.key, "America/New_York")

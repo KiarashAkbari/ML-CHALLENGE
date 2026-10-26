@@ -48,7 +48,7 @@ def process(
     cfg: Config,
     zip_index: Mapping[str, ZipArea],
 ) -> ProcessResult:
-    """One streaming pass; on threshold failure the quarantine is kept, the dataset is not."""
+    """One streaming pass; a failed run keeps its quarantine as quarantine.failed.jsonl and leaves the last good outputs untouched."""
     zone = cfg.source.timezone
     report, stats = QualityReport(), JoinStats()
     aggregator = AreaMonthAggregator(
@@ -77,6 +77,7 @@ def process(
                 )
         except QuarantineThresholdError as exc:
             threshold_error = exc
+            quarantine.mark_failed()
     if threshold_error is not None:
         raise threshold_error
 

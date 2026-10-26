@@ -8,7 +8,7 @@ from data_factory.cli import main
 from data_factory.config import load_config
 from data_factory.exit_codes import ExitCode
 from data_factory.fetch import query_fingerprint
-from data_factory.quarantine import QUARANTINE_FILENAME
+from data_factory.quarantine import VALIDATE_FILENAME
 from data_factory.store import RawPageStore
 from helpers import make_row
 
@@ -76,7 +76,7 @@ class ValidateCommandTests(unittest.TestCase):
         return code, out.getvalue(), err.getvalue()
 
     def _quarantine_lines(self):
-        path = self.quarantine_dir / QUARANTINE_FILENAME
+        path = self.quarantine_dir / VALIDATE_FILENAME
         return path.read_text(encoding="utf-8").splitlines()
 
     def test_clean_data_passes_with_empty_quarantine(self):
@@ -108,7 +108,7 @@ class ValidateCommandTests(unittest.TestCase):
     def test_quarantine_file_is_identical_across_runs(self):
         self.store.write_page(0, build_rows(200, bad=1))
         self._run()
-        first = (self.quarantine_dir / QUARANTINE_FILENAME).read_bytes()
+        first = (self.quarantine_dir / VALIDATE_FILENAME).read_bytes()
         self._run()
-        second = (self.quarantine_dir / QUARANTINE_FILENAME).read_bytes()
+        second = (self.quarantine_dir / VALIDATE_FILENAME).read_bytes()
         self.assertEqual(first, second)
