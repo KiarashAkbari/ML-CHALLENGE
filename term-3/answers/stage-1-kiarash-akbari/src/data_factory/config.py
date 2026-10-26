@@ -103,6 +103,14 @@ def _is_http_status(value) -> bool:
     )
 
 
+def _is_int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def _parse_reference(section: dict) -> ReferenceConfig:
     limit = _get(section, "limit", "reference")
     if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
@@ -129,22 +137,22 @@ def parse_config(data: dict) -> Config:
         raise ConfigError("source.start_date must not be after source.end_date")
 
     page_size = _get(s, "page_size", "source")
-    if not isinstance(page_size, int) or not 1 <= page_size <= MAX_SOCRATA_PAGE:
+    if not _is_int(page_size) or not 1 <= page_size <= MAX_SOCRATA_PAGE:
         raise ConfigError(f"source.page_size must be an integer in 1..{MAX_SOCRATA_PAGE}")
 
     retries = _get(h, "max_retries", "http")
-    if not isinstance(retries, int) or retries < 0:
+    if not _is_int(retries) or retries < 0:
         raise ConfigError("http.max_retries must be an integer >= 0")
 
     timeout = _get(h, "timeout_seconds", "http")
     backoff = _get(h, "backoff_base_seconds", "http")
-    if not isinstance(timeout, (int, float)) or timeout <= 0:
+    if not _is_number(timeout) or timeout <= 0:
         raise ConfigError("http.timeout_seconds must be > 0")
-    if not isinstance(backoff, (int, float)) or backoff < 0:
+    if not _is_number(backoff) or backoff < 0:
         raise ConfigError("http.backoff_base_seconds must be >= 0")
 
     factor = _get(h, "backoff_factor", "http")
-    if not isinstance(factor, (int, float)) or factor < 1:
+    if not _is_number(factor) or factor < 1:
         raise ConfigError("http.backoff_factor must be >= 1")
 
     statuses = _get(h, "retry_statuses", "http")
@@ -152,11 +160,11 @@ def parse_config(data: dict) -> Config:
         raise ConfigError("http.retry_statuses must be a list of HTTP status codes")
 
     ratio = _get(q, "max_quarantine_ratio", "quality")
-    if not isinstance(ratio, (int, float)) or not 0 < ratio < 1:
+    if not _is_number(ratio) or not 0 < ratio < 1:
         raise ConfigError("quality.max_quarantine_ratio must be in (0, 1)")
 
     min_rows = _get(q, "min_rows_for_threshold", "quality")
-    if not isinstance(min_rows, int) or isinstance(min_rows, bool) or min_rows < 1:
+    if not _is_int(min_rows) or min_rows < 1:
         raise ConfigError("quality.min_rows_for_threshold must be an integer >= 1")
 
     reference = _parse_reference(_section(data, "reference")) if "reference" in data else None
