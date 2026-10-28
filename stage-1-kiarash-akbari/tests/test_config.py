@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from data_factory.config import load_config
+from data_factory.config import MAX_HTTP_RETRIES, load_config
 from data_factory.errors import ConfigError
 
 VALID = """
@@ -60,6 +60,30 @@ class ConfigTests(unittest.TestCase):
         bad = VALID.replace("curated_dir", "processed_dir")
         with self.assertRaisesRegex(ConfigError, "paths.curated_dir"):
             self._load(bad)
+
+    def test_non_finite_numbers_are_rejected(self):
+        """tomllib accepts inf/nan; the loader must not pass them through."""
+        originals = {
+            "timeout_seconds": "timeout_seconds = 10",
+            "backoff_base_seconds": "backoff_base_seconds = 1.5",
+            "backoff_factor": "backoff_factor = 2.0",
+            "max_quarantine_ratio": "max_quarantine_ratio = 0.05",
+        }
+        for key, original in originals.items():
+            for value in ("inf", "-inf", "nan"):
+                text = VALID.replace(original, f"{key} = {value}")
+                with self.subTest(key=key, value=value), self.assertRaisesRegex(ConfigError, key):
+                    self._load(text)
+
+    def test_zero_backoff_base_is_allowed(self):
+        self._load(VALID.replace("backoff_base_seconds = 1.5", "backoff_base_seconds = 0"))
+
+    def test_retry_budget_is_bounded(self):
+        ceiling = VALID.replace("max_retries = 3", f"max_retries = {MAX_HTTP_RETRIES}")
+        self.assertEqual(self._load(ceiling).http.max_retries, MAX_HTTP_RETRIES)
+        for bad in (str(MAX_HTTP_RETRIES + 1), "999999999", "-1"):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ConfigError, "max_retries"):
+                self._load(VALID.replace("max_retries = 3", f"max_retries = {bad}"))
 
     def test_invalid_backoff_factor(self):
         bad = VALID.replace("backoff_factor = 2.0", "backoff_factor = 0.5")

@@ -1,6 +1,7 @@
 """Typed, validated configuration loaded from TOML."""
 from __future__ import annotations
 
+import math
 import tomllib
 from dataclasses import dataclass
 from datetime import date
@@ -12,6 +13,10 @@ from .errors import ConfigError
 MAX_SOCRATA_PAGE = 50_000
 MIN_HTTP_STATUS = 100
 MAX_HTTP_STATUS = 599
+# Each retry sleeps backoff_base * factor**attempt, so an unbounded budget is
+# not a policy but a fetch that never returns -- 999999999 is a typo. Twenty
+# attempts already outlast a sustained 429 storm.
+MAX_HTTP_RETRIES = 20
 
 
 @dataclass(frozen=True)
@@ -111,6 +116,17 @@ def _is_number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _is_finite_number(value) -> bool:
+    """A number the request loop can act on.
+
+    tomllib accepts inf and nan (the TOML spec allows them) and both pass an
+    isinstance check, so a typo becomes sleep(inf) or a ValueError three files
+    away from the config that caused it. Rejecting them here keeps the failure
+    at the boundary, where the message can name the key.
+    """
+    return _is_number(value) and math.isfinite(value)
+
+
 def _parse_reference(section: dict) -> ReferenceConfig:
     limit = _get(section, "limit", "reference")
     if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
@@ -141,27 +157,27 @@ def parse_config(data: dict) -> Config:
         raise ConfigError(f"source.page_size must be an integer in 1..{MAX_SOCRATA_PAGE}")
 
     retries = _get(h, "max_retries", "http")
-    if not _is_int(retries) or retries < 0:
-        raise ConfigError("http.max_retries must be an integer >= 0")
+    if not _is_int(retries) or not 0 <= retries <= MAX_HTTP_RETRIES:
+        raise ConfigError(f"http.max_retries must be an integer in 0..{MAX_HTTP_RETRIES}")
 
     timeout = _get(h, "timeout_seconds", "http")
     backoff = _get(h, "backoff_base_seconds", "http")
-    if not _is_number(timeout) or timeout <= 0:
-        raise ConfigError("http.timeout_seconds must be > 0")
-    if not _is_number(backoff) or backoff < 0:
-        raise ConfigError("http.backoff_base_seconds must be >= 0")
+    if not _is_finite_number(timeout) or timeout <= 0:
+        raise ConfigError("http.timeout_seconds must be a finite number > 0")
+    if not _is_finite_number(backoff) or backoff < 0:
+        raise ConfigError("http.backoff_base_seconds must be a finite number >= 0")
 
     factor = _get(h, "backoff_factor", "http")
-    if not _is_number(factor) or factor < 1:
-        raise ConfigError("http.backoff_factor must be >= 1")
+    if not _is_finite_number(factor) or factor < 1:
+        raise ConfigError("http.backoff_factor must be a finite number >= 1")
 
     statuses = _get(h, "retry_statuses", "http")
     if not isinstance(statuses, list) or not all(_is_http_status(c) for c in statuses):
         raise ConfigError("http.retry_statuses must be a list of HTTP status codes")
 
     ratio = _get(q, "max_quarantine_ratio", "quality")
-    if not _is_number(ratio) or not 0 < ratio < 1:
-        raise ConfigError("quality.max_quarantine_ratio must be in (0, 1)")
+    if not _is_finite_number(ratio) or not 0 < ratio < 1:
+        raise ConfigError("quality.max_quarantine_ratio must be a finite number in (0, 1)")
 
     min_rows = _get(q, "min_rows_for_threshold", "quality")
     if not _is_int(min_rows) or min_rows < 1:
