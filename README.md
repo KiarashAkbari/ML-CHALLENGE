@@ -1,25 +1,25 @@
-# ML-CHALLENGE — Term 3
+# دورهٔ ML — سه مرحله، سه پوشه
 
-Standalone mirror of the ML stages (1–3) from the main `dotin` repository. Stats-challenge content is intentionally excluded.
+آینهٔ مستقل مراحل ۱ تا ۳ چالش ML از مخزن اصلی `dotin`. محتوای چالش‌های آمار عمداً وارد این مخزن نمی‌شود.
 
-## Structure
+## ساختار
 
-- `stage-1-kiarash-akbari/` — Data Factory: NYC 311 noise-complaint pipeline (API ingestion, validation, quarantine, cleaning, outputs, manifest).
-- `stage-2-kiarash-akbari/` — Database Performance: Olist PostgreSQL schema, analytical views, snapshots, and query optimization.
-- `stage-3-kiarash-akbari/` — Machine Learning: cost-sensitive credit-default prediction with evidence-driven threshold selection.
+- `stage-1-kiarash-akbari/` — کارخانهٔ داده: خط لولهٔ شکایت‌های صدای 311 نیویورک (دریافت از API، اعتبارسنجی، قرنطینه، پاک‌سازی، خروجی‌ها، manifest).
+- `stage-2-kiarash-akbari/` — کارایی پایگاه‌داده: طرح‌ریزی Olist در PostgreSQL، viewهای تحلیلی، snapshotها و بهینه‌سازی کوئری‌ها.
+- `stage-3-kiarash-akbari/` — یادگیری ماشین: پیش‌بینی هزینه‌محور نکول اعتباری با انتخاب آستانهٔ مبتنی بر شواهد.
 
-All three stage folders are synced from `dotin` (branch `stage-3/setup` / merged to `main`).
+هر سه پوشه از `dotin` (شاخهٔ `stage-3/setup` / merge‌شده به `main`) همگام شده‌اند.
 
-## Stage 3 highlights
+## نکات مرحلهٔ ۳
 
-- Cost-sensitive threshold selection (12:1 FN:FP matrix), achieving a 54.1% cost reduction vs. the "flag nobody" baseline.
-- Full missingness evidence (sentinel spikes, co-missingness, two-proportion test).
-- Leakage audit for all engineered features.
+- انتخاب آستانهٔ هزینه‌محور (ماتریس ۱۲:۱ FN:FP) با کاهش ۵۴.۱٪ هزینه نسبت به baseline «هیچ‌کس را علامت نزن».
+- شواهد کامل گم‌شدگی (sentinel spikes، co-missingness، آزمون دو‌نسبتی).
+- ممیزی نشت برای همهٔ ویژگی‌های مهندسی‌شده.
 
-## Setup
+## راه‌اندازی
 
-See each stage folder's own `README.md` / `requirements.txt` for stage-specific setup. A shared venv under `stage-1-kiarash-akbari/.venv` is recommended.
+برای راه‌اندازی هر مرحله، `README.md` و `requirements.txt` همان پوشه را ببینید. venv مشترک زیر `stage-1-kiarash-akbari/.venv` توصیه می‌شود.
 
-## Note
+## نکته
 
-This repository is a read-only mirror of the ML work; active development happens in `dotin`.
+این مخزن آینهٔ فقط‌خواندنی کار ML است؛ توسعهٔ فعال در `dotin` انجام می‌شود.
