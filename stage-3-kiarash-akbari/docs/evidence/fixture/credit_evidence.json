@@ -1,6 +1,7 @@
 {
   "ablation": {
     "dropped": 0,
+    "dropped_names": [],
     "full_cost": 909.900239899555,
     "rows": 6
   },
@@ -255,12 +256,39 @@
     "undefined_metrics": []
   },
   "importance": {
-    "count": 24
+    "count": 24,
+    "top5": [
+      {
+        "feature": "delinquency_events_total",
+        "importance_mean": 14.406667,
+        "importance_std": 13.485818
+      },
+      {
+        "feature": "num_late_60_89",
+        "importance_mean": 14.366667,
+        "importance_std": 3.88953
+      },
+      {
+        "feature": "income_per_dependent_was_missing",
+        "importance_mean": 12.82,
+        "importance_std": 2.750644
+      },
+      {
+        "feature": "monthly_income_was_missing",
+        "importance_mean": 12.82,
+        "importance_std": 2.750644
+      },
+      {
+        "feature": "debt_ratio",
+        "importance_mean": 8.566667,
+        "importance_std": 1.60125
+      }
+    ]
   },
   "load_run": {
     "file_name": "cs-training.csv",
     "fingerprint": "e9eb3b094a62",
-    "loaded_at": "2026-11-04 02:11:27.875368+00:00",
+    "loaded_at": "2026-11-04 03:27:24.692725+00:00",
     "rejected_count": 0,
     "rows_loaded": 150000,
     "sha256": "026a9163cc6f40092627d66ed837ae63b2cf83d4b4c15ebbefa419a727121330",

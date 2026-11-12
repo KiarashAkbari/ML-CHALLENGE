@@ -29,9 +29,6 @@ data/run_manifest*.json
 .ipynb_checkpoints/
 solution.before-fix.ipynb
 
-# Reviewed evidence only (numbers a reader can check against the report)
-!data/curated/credit-runs.json
-
 # The local copy of the source config. It holds paths on the student's machine and
 # nothing worth reviewing, while config/credit.example.toml is the tracked contract -
 # and the example says "untracked", so this makes that sentence true.

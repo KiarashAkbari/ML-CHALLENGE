@@ -103,7 +103,9 @@ class EngineForTests(unittest.TestCase):
         self.original_load = db.load_config
         self.original_url = db.build_database_url
         db.load_config = lambda path: fake_config()
-        db.build_database_url = lambda cfg: "postgresql+psycopg://user@127.0.0.1:5999/none"
+        db.build_database_url = lambda cfg: (
+            "postgresql+psycopg://user@127.0.0.1:5999/none"
+        )
 
     def tearDown(self):
         db.load_config = self.original_load
@@ -121,7 +123,9 @@ class EngineForTests(unittest.TestCase):
         self.assertIn("no password supplied", message)
         self.assertEqual(caught.exception.context["password_env"], ENV)
         self.assertIn(f"read -s {ENV} && export {ENV}", caught.exception.context["fix"])
-        self.assertTrue(engine.disposed, "the refused engine must not be left in the pool")
+        self.assertTrue(
+            engine.disposed, "the refused engine must not be left in the pool"
+        )
 
     def test_a_refusal_that_is_not_about_credentials_does_not_blame_one(self):
         """``Connection refused`` must not be answered with an export line.
@@ -180,10 +184,14 @@ class CauseTests(unittest.TestCase):
     def test_the_credential_words_are_recognised(self):
         self.assertTrue(db.is_a_credential_refusal("fe_sendauth: no password supplied"))
         self.assertTrue(
-            db.is_a_credential_refusal('password authentication failed for user "kiarash"')
+            db.is_a_credential_refusal(
+                'password authentication failed for user "kiarash"'
+            )
         )
         self.assertFalse(
-            db.is_a_credential_refusal("connection to server at 127.0.0.1 failed: refused")
+            db.is_a_credential_refusal(
+                "connection to server at 127.0.0.1 failed: refused"
+            )
         )
         self.assertFalse(db.is_a_credential_refusal("server closed the connection"))
 
@@ -198,9 +206,7 @@ class RedactionTests(unittest.TestCase):
             db.redact("conninfo password =hunter2 host=127.0.0.1"),
             "conninfo password =[redacted] host=127.0.0.1",
         )
-        self.assertEqual(
-            db.redact("Password: hunter2"), "Password:[redacted]"
-        )
+        self.assertEqual(db.redact("Password: hunter2"), "Password:[redacted]")
 
     def test_a_message_without_a_secret_is_left_alone(self):
         text = 'connection to server at "127.0.0.1", port 5432 failed'
@@ -217,7 +223,9 @@ class RedactionTests(unittest.TestCase):
 
     def test_an_exception_without_a_cause_still_reads(self):
         self.assertEqual(
-            db.connection_refusal(RuntimeError("server closed the connection unexpectedly")),
+            db.connection_refusal(
+                RuntimeError("server closed the connection unexpectedly")
+            ),
             "server closed the connection unexpectedly",
         )
 

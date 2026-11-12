@@ -18,6 +18,7 @@ A failing assertion below means a shipped migration's bytes changed. Revert the 
 the change in a new file instead; do not "fix" the pin unless the intent is to break every
 database that applied the old bytes.
 """
+
 from __future__ import annotations
 
 import unittest

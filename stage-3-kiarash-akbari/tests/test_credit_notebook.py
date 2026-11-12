@@ -95,6 +95,47 @@ def machinery_bounds(text: str) -> tuple[int, int]:
     return start, end
 
 
+def evidence_payload() -> dict | None:
+    """The payload the report was filled from - and a way to tell when it is not.
+
+    The run's own file wins: a machine that just executed the notebook has the freshest
+    truth, and demanding the shipped report match it is how a re-run that changed a number
+    without refilling the text gets caught. It only wins when it describes the *same input*
+    as the archived run, though. Re-executing this stage on the fixture while `report.md`
+    still carries the real run's numbers is a legitimate thing to do - and comparing those
+    numbers to a payload generated from a different file is not a check, it is a false
+    alarm. So the two files are reconciled by the one field that identifies the input:
+    equal `load_run.sha256` means the local payload is the report's source.
+    """
+    local, archived = (
+        ROOT / "data/curated/credit_evidence.json",
+        ROOT / "docs/evidence/real/credit_evidence.json",
+    )
+    loaded = {
+        path: json.loads(path.read_text(encoding="utf-8"))
+        for path in (local, archived)
+        if path.is_file()
+    }
+    if not loaded:
+        return None
+    if local in loaded:
+        if archived not in loaded:
+            return loaded[local]
+        if _input_of(loaded[local]) == _input_of(loaded[archived]):
+            return loaded[local]
+    return loaded.get(archived) or loaded.get(local)
+
+
+def _input_of(evidence: dict) -> str | None:
+    """Which file a payload describes - the field that makes two payloads comparable.
+
+    Deliberately only the hash: a run's timestamp differs on every execution and a row count
+    would match a fixture that holds the same shape with different values.
+    """
+    run = evidence.get("load_run")
+    return run.get("sha256") if isinstance(run, dict) else None
+
+
 def report_body(text: str) -> str:
     """The report as the number rules see it: slots and the machinery run removed, structure too.
 
@@ -515,22 +556,16 @@ class ReportEvidenceTests(unittest.TestCase):
             # wrote. the exemptions stay the same two - the brief's own constants, and the
             # archived machinery section - so filling the report cannot turn the suite red
             # over a policy constant, and cannot smuggle an invented number in either.
-            # two places hold that payload, in this order: the run's own output, and the copy
-            # archived beside the report it produced. the second one exists because committing a
-            # filled report commits the numbers without data/ - a fresh clone has no curated file,
-            # and a check that only reads the working tree of whoever ran the notebook would call
-            # that a broken delivery instead of an archived one.
-            evidence_path = ROOT / "data" / "curated" / "credit_evidence.json"
-            if not evidence_path.is_file():
-                archived = ROOT / "docs" / "evidence" / "real" / "credit_evidence.json"
-                if archived.is_file():
-                    evidence_path = archived
-            if not evidence_path.is_file():
+            # one rule for both places that hold the payload - see evidence_payload(): the run's
+            # own file when it describes the same input, the copy archived beside the report
+            # otherwise. a fresh clone has no data/, and a check that only read the working tree
+            # of whoever ran the notebook would call that a broken delivery instead of archived.
+            evidence = evidence_payload()
+            if evidence is None:
                 self.fail(
                     "report.md carries no slots, and neither data/curated/credit_evidence.json "
                     "nor docs/evidence/real/credit_evidence.json is here to trace its numbers to"
                 )
-            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
             untraceable = sorted(
                 set(self.report.check_traceability(body, evidence))
                 - DEFINITIONAL_NUMBERS
@@ -781,6 +816,45 @@ class MeasureTests(unittest.TestCase):
             self.measure.read_query(self.sql, "made_up")
         self.assertIn("sentinel_spikes", str(caught.exception))
 
+    def test_a_database_without_the_schema_says_what_to_run(self):
+        """Run All on a fresh cluster reads provenance before it writes anything.
+
+        The driver's own answer is ``relation "credit.load_run" does not exist``: it names a table
+        and no action. The stage's first contact with a new machine should not be a traceback, and
+        the function already explains an *empty* provenance table - so the missing one has to be
+        explained too. That branch needs a server unless it is faked, which is what this does.
+        """
+        import sqlalchemy as sa
+
+        class Refusing:
+            def __init__(self, error):
+                self._error = error
+
+            def execute(self, statement):
+                raise self._error
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        error = sa.exc.ProgrammingError(
+            "SELECT 1", {}, Exception('relation "credit.load_run" does not exist')
+        )
+
+        class Engine:
+            def connect(self):
+                return Refusing(error)
+
+        with self.assertRaises(ValueError) as caught:
+            self.measure.load_run_provenance(Engine(), schema="credit")
+        message = str(caught.exception)
+        self.assertIn(
+            "credit.load", message, "the hint must name the command that fixes it"
+        )
+        self.assertIn("--reset", message, "the hint must be paste-able as documented")
+
     def test_evidence_file_is_written_atomically_and_deterministically(self):
         import tempfile
 
@@ -913,17 +987,59 @@ class ArchivedEvidenceConsistencyTests(unittest.TestCase):
         )
         self._agree(manifest, evidence)
 
+    def test_the_feature_names_reach_the_evidence(self):
+        """A report whose only word about importance is "12 columns were checked" has not answered.
+
+        The brief asks for the five most important features and for what the ablation dropped, so
+        the *run* has to store the names: ``importance.top5`` and ``ablation.dropped_names``. The
+        generator is pinned by text - the shape of the payload lives inside a notebook cell, and a
+        cell that stops emitting a key is exactly the kind of edit that leaves a report unable to
+        say anything true - and the fixture archive is pinned by value, because an archived run is
+        the only proof that the cell emitted them and not a hand-written file.
+        """
+        source = (ROOT / "scripts" / "build_solution_notebook.py").read_text(
+            encoding="utf-8"
+        )
+        for key in ("dropped_names", '"top5"'):
+            self.assertIn(
+                key, source, f"the evidence cell of the notebook no longer emits {key}"
+            )
+        evidence = json.loads(
+            (self.FIXTURE / "credit_evidence.json").read_text(encoding="utf-8")
+        )
+        ablation = evidence["ablation"]
+        importance = evidence["importance"]
+        self.assertEqual(
+            len(ablation["dropped_names"]),
+            ablation["dropped"],
+            "the ablation counted a different number of features than it named",
+        )
+        self.assertEqual(
+            len(set(ablation["dropped_names"])),
+            len(ablation["dropped_names"]),
+            "a dropped feature named twice",
+        )
+        self.assertLessEqual(
+            len(importance["top5"]),
+            importance["count"],
+            "more features named than the run measured",
+        )
+        for row in importance["top5"]:
+            self.assertTrue(
+                str(row["feature"]).strip(), "an empty feature name in the ranking"
+            )
+            self.assertIn("importance_mean", row)
+        means = [row["importance_mean"] for row in importance["top5"]]
+        self.assertEqual(
+            means,
+            sorted(means, reverse=True),
+            "the head of a ranking that is not sorted descending",
+        )
+
     @staticmethod
     def _evidence() -> dict | None:
-        """The payload the numbers came from: the run's own file, else the archived copy."""
-        for name in (
-            "data/curated/credit_evidence.json",
-            "docs/evidence/real/credit_evidence.json",
-        ):
-            path = ROOT / name
-            if path.is_file():
-                return json.loads(path.read_text(encoding="utf-8"))
-        return None
+        """See :func:`evidence_payload` - one rule, shared with the slot test."""
+        return evidence_payload()
 
     def test_an_archived_real_run_matches_the_shipped_report(self):
         manifest_path = self.REAL / "credit_run_manifest.json"

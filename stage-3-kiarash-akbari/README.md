@@ -12,7 +12,7 @@ report.md                 گزارش فارسی با جای‌نگهدار؛ س�
 requirements.txt          پین‌ها (Python >= 3.12، scikit-learn/joblib افزوده شد)
 README.md                 همین فایل
 src/credit/               قرارداد، منبع فایل، اعتبارسنجی، هزینه، فیچر، split، prep، مدل، ارزیابی
-tests/                    ۲۷۷ آزمون آفلاین (unittest discover -s tests)
+tests/                    ۲۸۲ آزمون آفلاین (unittest discover -s tests)
 scripts/                  ژنراتور نوت‌بوک، runner اجرای نوت‌بوک، سازندهٔ fixture
 docs/evidence/fixture/    شاهد یک اجرای کامل روی PostgreSQL واقعی (دادهٔ آزمایشی)
 sql/                      010 اسکیما + 011 استیجینگ، و دو کوئری اندازه‌گیری در sql/queries
@@ -157,7 +157,7 @@ $P scripts/make_fixture.py --rows 150000     # سرستونِ اول را خال
 ### وضعیت بستر (ماشینِ تحویل؛ ماشینِ بازبین روی `7816890` و `62fcbd6`)
 
 - مرحلهٔ ۱: `Ran 257 OK` — مرحلهٔ ۲: `Ran 46 OK (skipped=25)` — مرحلهٔ ۳ (این پوشه):
-  `Ran 277 OK`. کنترل منفی (ماتریس هزینه ۱:۱، حذف shuffle از split، حذف
+  `Ran 282 OK (skipped=1)`. کنترل منفی (ماتریس هزینه ۱:۱، حذف shuffle از split، حذف
   `infer_objects` از مسیر خواندن): `FAILED (failures=12)`، یعنی آزمون‌ها بایت می‌کنند.
   هر سه عدد از یک extract تمیزِ `git archive HEAD` آمده‌اند، نه از پوشهٔ کاری.
 - ماشینِ بازبین (`7816890`، Python 3.12.3) قفلِ exact-pin را از
@@ -167,6 +167,13 @@ $P scripts/make_fixture.py --rows 150000     # سرستونِ اول را خال
   قفلِ وابستگی آنجا **واقعاً** اجرا شد (نه skip)، چون هر ۲۸ نامِ قفل به‌علاوهٔ
   `data-factory` با `-e` نصب بودند؛ در جعبهٔ من که `data-factory` ثبت‌نشده بود skip
   می‌کرد.
+- اجرایِ *تحلیلیِ* دوباره روی دادهٔ واقعی هم سنجیده شد: `python scripts/run_notebook.py --out
+  /tmp/solution.executed.ipynb --budget-minutes 20` داد `executed … code_cells=24 errors=0
+  elapsed=593.3s budget=20min problems=0`، و evidenceِ آن اجرا با بایگانیِ `docs/evidence/real/`
+  جز در دو کلیدِ تازه (`importance.top5`، `ablation.dropped_names`) هیچ فیلدِ متفاوتی نداشت - پس
+  «اعدادِ این گزارش از یک اجرایِ تصادفی نمی‌آیند» یک اندازه‌گیری است، نه ادعا. ردیفِ `load_run` از
+  بارگذاریِ پیشین خوانده شد؛ صفرِ مطلقِ دیتابیس در اجرایِ جعبهٔ تحویل سنجیده شده (بخشِ
+  «اجرای ماشین‌افزار»)، نه در این یکی.
 - بارگذاریِ فایلِ واقعی روی همان ماشین هم بسته شد: بعد از `62fcbd6`،
   `credit.load --reset` داد
   `file=cs-training.csv sha256=1bd46da486a5 loaded=150000 rejected=0 pages=16

@@ -14,7 +14,14 @@ Run from the stage-3 directory:
     PYTHONPATH=src:tests python scripts/make_fixture.py --keep-header  # assume the real header
 
 It prints the sha256 of what it wrote, because the load manifest records that hash and
-every number in the evidence files is tied to the file that hash names.
+every number in the evidence files is tied to the file that hash names. The hash is not a
+promise across library versions: the bytes come from a dataframe write, so a different
+pandas or numpy can render the same values differently and print a different hash. That is
+not a bug to chase: the fixture is a stand-in for a run that has no Kaggle download, and on
+a re-execution the values - not the bytes - are what reproduce. Both were measured, not
+assumed: a fresh cluster with pandas 3.1.0 and numpy 2.4.6 regenerated this file with a
+different hash and the same numbers in every field of the evidence except the two that name
+the input and its timestamp (docs/evidence/fixture/run.txt).
 """
 
 from __future__ import annotations

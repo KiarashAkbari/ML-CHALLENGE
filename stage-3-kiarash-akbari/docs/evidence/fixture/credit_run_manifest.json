@@ -22,18 +22,18 @@
     "schema": "credit",
     "table": "credit.application"
   },
-  "finished_at": "2026-11-04T02:11:29+00:00",
+  "finished_at": "2026-11-04T03:27:27+00:00",
   "http": {
     "note": "a file source makes no requests",
     "requests_this_run": 0
   },
   "kind": "credit-ingest",
   "paging": {
-    "already_complete_before_run": false,
+    "already_complete_before_run": true,
     "page_bound_respected": true,
-    "pages_fetched_this_run": 16,
+    "pages_fetched_this_run": 0,
     "pages_total": 16,
-    "resumed_from_page": 0
+    "resumed_from_page": 16
   },
   "quality": {
     "by_reason": {
@@ -54,5 +54,5 @@
     "rows_in_file": 150000,
     "sha256": "026a9163cc6f40092627d66ed837ae63b2cf83d4b4c15ebbefa419a727121330"
   },
-  "started_at": "2026-11-04T02:11:24+00:00"
+  "started_at": "2026-11-04T03:27:23+00:00"
 }

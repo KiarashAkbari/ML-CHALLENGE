@@ -508,12 +508,12 @@ else:
     "threshold": {"value": choice.threshold, "grid_size": choice.grid_size, "ties": choice.ties, "cost_per_1000": choice.cost_per_1000},
     "plans": {r.plan: {"mean_cost_per_1000": r.mean_cost} for r in sweep},
     "cv": {r.family: r.as_dict() for r in families},
-    "ablation": {"full_cost": full_cost, "dropped": len(dropped), "rows": len(ablation_frame)},
+    "ablation": {"full_cost": full_cost, "dropped": len(dropped), "dropped_names": dropped, "rows": len(ablation_frame)},
     "prep": {"fitted_rows": combined_stats.fitted_rows, "features": len(kept_names), "input_columns": len(kept_inputs)},
     "holdout": holdout.as_dict(),
     "fairness": {"bands": len(band_rows), "max_band": worst_band, "min_band": best_band},
     "sensitivity": {str(row["matrix"]).replace(":", "_"): row for row in sensitivity},
-    "importance": {"count": len(importance)},
+    "importance": {"count": len(importance), "top5": importance.head(5).to_dict("records")},
 })
 path = measure.write_json(Path("data/curated/credit_evidence.json"), evidence)
 print(report.render_numbers_table(evidence, preferred=["threshold.value", "holdout.cost_per_1000", "splits.train", "prep.fitted_rows"]))

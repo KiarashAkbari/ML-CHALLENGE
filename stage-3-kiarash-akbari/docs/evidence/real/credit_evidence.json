@@ -1,6 +1,12 @@
 {
   "ablation": {
     "dropped": 4,
+    "dropped_names": [
+      "income_not_reported",
+      "utilization_over_limit",
+      "overcommitted",
+      "income_per_dependent"
+    ],
     "full_cost": 368.5443800767831,
     "rows": 6
   },
@@ -255,7 +261,34 @@
     "undefined_metrics": []
   },
   "importance": {
-    "count": 12
+    "count": 12,
+    "top5": [
+      {
+        "feature": "delinquency_events_total",
+        "importance_mean": 183.706667,
+        "importance_std": 6.751507
+      },
+      {
+        "feature": "revolving_utilization_unsecured",
+        "importance_mean": 93.44,
+        "importance_std": 3.148714
+      },
+      {
+        "feature": "age",
+        "importance_mean": 20.106667,
+        "importance_std": 2.582282
+      },
+      {
+        "feature": "debt_ratio",
+        "importance_mean": 10.933333,
+        "importance_std": 2.120482
+      },
+      {
+        "feature": "num_open_credit_lines",
+        "importance_mean": 8.426667,
+        "importance_std": 2.018074
+      }
+    ]
   },
   "load_run": {
     "file_name": "cs-training.csv",

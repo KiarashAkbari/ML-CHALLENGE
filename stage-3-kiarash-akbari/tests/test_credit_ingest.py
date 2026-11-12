@@ -508,9 +508,7 @@ class MigrationSetTests(unittest.TestCase):
                     apply_migrations(None, cfg)  # type: ignore[arg-type]
             finally:
                 credit_load.apply_sql_migrations = original  # type: ignore[assignment]
-        self.assertEqual(
-            str(caught.exception), 'syntax error at or near "SELEKT"'
-        )
+        self.assertEqual(str(caught.exception), 'syntax error at or near "SELEKT"')
         self.assertNotIn("--reset", str(caught.exception))
 
     def test_the_hint_is_a_query_anyone_can_run_and_one_command(self):

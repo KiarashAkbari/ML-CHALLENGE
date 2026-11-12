@@ -127,7 +127,16 @@ def load_run_provenance(
         f"loaded_at FROM {schema}.load_run ORDER BY run_id DESC LIMIT 1"
     )
     with engine.connect() as connection:
-        row = connection.execute(sa.text(sql)).mappings().first()
+        try:
+            row = connection.execute(sa.text(sql)).mappings().first()
+        except sa.exc.ProgrammingError as error:
+            # A database that never ran this stage has no schema at all, and this is the
+            # first query the notebook issues - so the raw driver error would be a stranger's
+            # whole experience of the stage. Say what to run, in a line they can paste.
+            raise ValueError(
+                f"no {schema}.load_run table here yet: apply the migrations and load the file "
+                "first - python -m credit.load --reset --credit-config config/credit.toml"
+            ) from error
     if row is None:
         raise ValueError(
             f"no load_run row in {schema}; run python -m credit.load first"
